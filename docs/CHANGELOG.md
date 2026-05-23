@@ -7,6 +7,21 @@ uses [Semantic Versioning](https://semver.org) at the major-version level only
 
 ---
 
+## [v1.0.2] — 2026-05-23
+
+### Changed
+
+- Phase 1 sealed on 2026-05-23 — monorepo scaffold landed (see
+  [phase-1](./v1/phases/phase-1-scaffold.md)). pnpm workspace + `apps/hud`
+  (Next.js 16, React 19, Tailwind 4) + `packages/contracts` skeleton +
+  `hooks/claude-hook.sh` stub. Root scripts `dev`, `build`, `lint`, `typecheck`,
+  `test`, `format` wired across workspaces.
+- Phase 1 status moved from ⚪ Not Started to 🟢 Complete in
+  [`v1/phases/README.md`](./v1/phases/README.md) and
+  [`v1/progress.html`](./v1/progress.html). Phase 2 is now unblocked.
+
+---
+
 ## [v1.0.1] — 2026-05-22
 
 ### Changed

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Phase ID | `phase-1` |
-| Status | ⚪ Not Started |
+| Status | 🟢 Complete |
 | Depends on | `phase-0` |
 | Blocks | `phase-2` |
 | Target outcome | `pnpm install && pnpm dev` renders an empty Next.js HUD shell at `http://localhost:3000` |
@@ -121,3 +121,7 @@ livo-clouds-claude-hud/
 - [`./phase-0-design-decisions.md`](./phase-0-design-decisions.md) — provides D-0.3, D-0.4.
 - [`./phase-2-event-contract.md`](./phase-2-event-contract.md) — first consumer of `packages/contracts`.
 - [`../architecture.md`](../architecture.md) — overall topology.
+
+## Change Log
+
+- **2026-05-23** — Scaffold landed. `pnpm install`, `pnpm typecheck`, `pnpm -r run lint`, and `pnpm --filter @livoclouds/hud build` all succeed. Next.js was pinned to `^16.0.0` (current major), React `^19.1.0`, Tailwind `^4.0.0`. ESLint uses a flat config with `typescript-eslint` recommended rules (no Next.js plugin pulled in at the root because `next lint` is deprecated in 16; the placeholder page is linted via the same flat config). `packages/contracts` was created with a Vitest skeleton; the Zod schema itself lands in Phase 2.
