@@ -1,0 +1,34 @@
+[Unit]
+Description=Claude Code HUD — Chromium kiosk
+Documentation=https://github.com/livoclouds/livo-clouds-claude-hud
+After=graphical-session.target network-online.target
+Wants=graphical-session.target network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/livo-clouds-hud-kiosk.env
+ExecStartPre=/bin/sh -c '%h/.local/bin/xrandr-rotate.sh || true'
+ExecStartPre=/usr/bin/xset s off
+ExecStartPre=/usr/bin/xset -dpms
+ExecStartPre=/usr/bin/xset s noblank
+ExecStart=/bin/sh -c 'unclutter -idle 1 -root & exec chromium-browser \
+  --kiosk \
+  --noerrdialogs \
+  --disable-infobars \
+  --disable-translate \
+  --disable-features=TranslateUI \
+  --disable-session-crashed-bubble \
+  --disable-component-update \
+  --no-first-run \
+  --no-default-browser-check \
+  --check-for-update-interval=31536000 \
+  --overscroll-history-navigation=0 \
+  --password-store=basic \
+  --user-data-dir=%h/.local/share/livo-clouds-hud-kiosk \
+  --app="$HUD_URL"'
+ExecStopPost=/bin/sh -c 'pkill -u %u -x unclutter || true'
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target
