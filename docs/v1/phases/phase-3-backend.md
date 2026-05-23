@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Phase ID | `phase-3` |
-| Status | ⚪ Not Started |
+| Status | 🟢 Complete |
 | Depends on | `phase-2` |
 | Blocks | `phase-4`, `phase-5` |
 | Target outcome | A `curl` POST to `/api/events` reaches every connected `EventSource` subscriber on `/api/stream` within 500 ms |
@@ -125,3 +125,30 @@ apps/hud/
 - [`./phase-4-hook-script.md`](./phase-4-hook-script.md) — first non-curl producer.
 - [`./phase-5-live-view.md`](./phase-5-live-view.md) — first non-curl consumer.
 - [`../architecture.md`](../architecture.md) — full topology.
+
+## Change Log
+
+- **2026-05-23 — Phase 3 sealed.** All acceptance criteria verified locally:
+  401 on missing/bad bearer, 400 with Zod issues on malformed payloads, 204 on
+  valid events, two parallel SSE subscribers both receive each published
+  event, JSONL line lands under `apps/hud/data/events-YYYY-MM-DD.jsonl`,
+  `: ping` heartbeat fires within ~15 s, and `Last-Event-ID` replay works
+  (including the `stream-replay-truncated` notice for out-of-window IDs).
+- **D-3.4 — Event IDs.** Resolved: base-36 monotonic in-process counter,
+  assigned by `bus.publish`. IDs reset on process restart, consistent with
+  the documented "bus is empty on restart" guarantee.
+- **D-3.5 — Token script runtime.** Resolved: implemented as
+  `apps/hud/scripts/gen-token.mjs` (plain Node ESM) rather than `.ts` to avoid
+  pulling in a TypeScript runner just to run one short script. Wired through
+  root `pnpm hud:token`.
+- **`/api/stream` auth.** Decided unauthenticated by design in v1.
+  `CLAUDE.md §2` mandates the bearer token on **ingest** only; the stream is
+  a read-only fan-out for local-LAN UI clients. Browser `EventSource` cannot
+  set an `Authorization` header cleanly, and token-in-query would leak into
+  server/proxy logs. Revisit if the HUD ever exits the LAN.
+- **JSONL location.** With `next dev` / `next start` the process CWD is
+  `apps/hud/`, so the log lives at `apps/hud/data/events-YYYY-MM-DD.jsonl`.
+  Root `.gitignore` covers `data/` recursively and `*.jsonl` everywhere.
+- **Bus singleton.** Cached on `globalThis.__hudEventBus` so Next.js dev-mode
+  HMR does not silently re-instantiate the ring buffer or strand subscribers
+  mid-session.
