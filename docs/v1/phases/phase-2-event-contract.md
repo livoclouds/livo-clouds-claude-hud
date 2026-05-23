@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Phase ID | `phase-2` |
-| Status | ⚪ Not Started |
+| Status | 🟢 Complete |
 | Depends on | `phase-1` |
 | Blocks | `phase-3`, `phase-4` |
 | Target outcome | `@livoclouds/contracts` exports a Zod-validated `HudEventSchema` covering every Claude Code hook the HUD will consume |
@@ -122,3 +122,15 @@ packages/contracts/
 - [`../../CLAUDE.md §8`](../../../CLAUDE.md) — proposed schema sketch.
 - [`./phase-3-backend.md`](./phase-3-backend.md) — first consumer of the schema.
 - [`./phase-4-hook-script.md`](./phase-4-hook-script.md) — first producer of the schema.
+
+## Decisions Resolved
+
+| Decision | Resolution | Date | Rationale |
+|---|---|---|---|
+| D-2.1 Hook set covered in v1 | Accepted the default proposal: `session.start`, `session.end`, `prompt.submit`, `tool.use`, `turn.stop`, `compact.start`, `compact.end`, `error` (8 variants). `PreToolUse`, `SubagentStop`, and the rest are noted in the table above and intentionally not subscribed in v1. | 2026-05-23 | The 8 chosen variants are the minimum set that drives every mascot state in [`../../../CLAUDE.md §7`](../../../CLAUDE.md). Subscribing to additional hooks (`PreToolUse` in particular) would double the event volume without adding a unique UI state — the HUD can synthesize "tool is about to run" from `prompt.submit` + `tool.use` ordering. |
+| D-2.2 Numeric units | Accepted the default proposal: `tokens.*` non-negative integers; `costUsd` non-negative float (full precision in storage); `contextPct` float in `[0, 100]`; `durationMs` and `ts` non-negative integers. | 2026-05-23 | Matches the schema sketch in `CLAUDE.md §8` and the conventions used by Anthropic's published `usage` shape (input/output/cache as integer token counts, `total_cost_usd` as float). |
+
+## Change Log
+
+- **2026-05-23** — Phase 2 landed. `HudEventSchema` shipped as a `z.discriminatedUnion('type', [...])` over 8 strict per-variant schemas in `packages/contracts/src/event.ts`. Inferred types exported: `HudEvent`, `HudEventType`, and one per variant (`SessionStartEvent`, `ToolUseEvent`, etc.). Vitest suite covers 10 positive fixtures (two for `tool.use`, two for `turn.stop`) and 9 negative cases asserting precise Zod error paths. `pnpm --filter @livoclouds/contracts test` passes (22 tests). `apps/hud` imports `HudEventSchema` and `type HudEvent` cleanly under Next.js 16 + Turbopack build.
+  - **Deviation**: extension-less imports (`from './event'`) instead of `.js` because Turbopack does not yet resolve TS files through a `.js` specifier in workspace-internal sources. Vitest accepts both. Documented for Phase 3 ingest implementation.

@@ -1,0 +1,14 @@
+{
+  "type": "tool.use",
+  "sessionId": "01HRZX7K3GQ8V5N0B4WJ2P3Y6E",
+  "cwd": "/Users/dev/Code/example-repo",
+  "model": "claude-opus-4-7",
+  "ts": 1748534415678,
+  "tool": "Edit",
+  "toolInput": {
+    "file_path": "/Users/dev/Code/example-repo/src/app.ts",
+    "old_string": "const port = 3000",
+    "new_string": "const port = 3010"
+  },
+  "durationMs": 142
+}

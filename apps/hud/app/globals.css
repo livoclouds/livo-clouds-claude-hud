@@ -1,0 +1,13 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-hud-bg: #0a0a0a;
+  --color-hud-fg: #f4f4f4;
+  --color-hud-accent: #cc785c;
+}
+
+html,
+body {
+  background: var(--color-hud-bg);
+  color: var(--color-hud-fg);
+}
