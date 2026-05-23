@@ -1,2 +1,14 @@
-// Phase 1 placeholder. Phase 2 replaces this with HudEventSchema and inferred types.
-export const CONTRACTS_PACKAGE = '@livoclouds/contracts' as const;
+export {
+  HudEventSchema,
+  HudEventTypes,
+  type HudEvent,
+  type HudEventType,
+  type SessionStartEvent,
+  type SessionEndEvent,
+  type PromptSubmitEvent,
+  type ToolUseEvent,
+  type TurnStopEvent,
+  type CompactStartEvent,
+  type CompactEndEvent,
+  type HudErrorEvent,
+} from './event';

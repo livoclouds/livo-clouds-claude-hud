@@ -1,0 +1,9 @@
+{
+  "type": "error",
+  "sessionId": "01HRZX7K3GQ8V5N0B4WJ2P3Y6E",
+  "cwd": "/Users/dev/Code/example-repo",
+  "model": "claude-opus-4-7",
+  "ts": 1748534430500,
+  "tool": "Bash",
+  "message": "Permission denied: command not allowed by sandbox"
+}

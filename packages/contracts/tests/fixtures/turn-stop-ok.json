@@ -1,0 +1,11 @@
+{
+  "type": "turn.stop",
+  "sessionId": "01HRZX7K3GQ8V5N0B4WJ2P3Y6E",
+  "cwd": "/Users/dev/Code/example-repo",
+  "model": "claude-opus-4-7",
+  "ts": 1748534432999,
+  "tokens": { "in": 12340, "out": 2317, "cached": 8800 },
+  "costUsd": 0.2814,
+  "contextPct": 38.4,
+  "durationMs": 9123
+}

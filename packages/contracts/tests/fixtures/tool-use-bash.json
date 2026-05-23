@@ -1,0 +1,13 @@
+{
+  "type": "tool.use",
+  "sessionId": "01HRZX7K3GQ8V5N0B4WJ2P3Y6E",
+  "cwd": "/Users/dev/Code/example-repo",
+  "model": "claude-opus-4-7",
+  "ts": 1748534420010,
+  "tool": "Bash",
+  "toolInput": {
+    "command": "pnpm test",
+    "description": "Run package tests"
+  },
+  "durationMs": 4821
+}
