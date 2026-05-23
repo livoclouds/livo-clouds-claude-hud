@@ -1,0 +1,1339 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Claude Code HUD — Progress Tracker · v1</title>
+    <meta
+      name="description"
+      content="Self-contained, interactive progress tracker for the Claude Code HUD v1 roadmap."
+    />
+    <style>
+      :root {
+        --bg: #f7f6f2;
+        --bg-elev: #ffffff;
+        --bg-soft: #efece4;
+        --fg: #1a1a1a;
+        --fg-soft: #555048;
+        --fg-mute: #8a8377;
+        --border: #e3ddcf;
+        --border-strong: #cdc4b2;
+        --accent: #cc785c;
+        --accent-soft: #f4e2d8;
+        --accent-fg: #ffffff;
+
+        --st-na: #c8c0ae;
+        --st-pl: #5b8def;
+        --st-ip: #d8a93a;
+        --st-bl: #d97a3a;
+        --st-ok: #4ea36a;
+        --st-cx: #a05a5a;
+
+        --radius: 14px;
+        --radius-sm: 8px;
+        --shadow-sm: 0 1px 2px rgba(20, 18, 14, 0.04),
+          0 1px 1px rgba(20, 18, 14, 0.03);
+        --shadow-md: 0 6px 24px -10px rgba(20, 18, 14, 0.12),
+          0 2px 6px rgba(20, 18, 14, 0.04);
+        --font-sans:
+          ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        --font-mono:
+          ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      }
+
+      [data-theme="dark"] {
+        --bg: #14130f;
+        --bg-elev: #1c1b17;
+        --bg-soft: #1f1e19;
+        --fg: #f3efe5;
+        --fg-soft: #b8b1a2;
+        --fg-mute: #7a7464;
+        --border: #2a2823;
+        --border-strong: #3a372f;
+        --accent: #e69275;
+        --accent-soft: #3a2a23;
+        --accent-fg: #14130f;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          --bg: #14130f;
+          --bg-elev: #1c1b17;
+          --bg-soft: #1f1e19;
+          --fg: #f3efe5;
+          --fg-soft: #b8b1a2;
+          --fg-mute: #7a7464;
+          --border: #2a2823;
+          --border-strong: #3a372f;
+          --accent: #e69275;
+          --accent-soft: #3a2a23;
+          --accent-fg: #14130f;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: var(--font-sans);
+        font-size: 15px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+
+      .app {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 32px 24px 96px;
+      }
+
+      header.top {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 16px;
+        padding-bottom: 24px;
+        border-bottom: 1px solid var(--border);
+      }
+      header.top .titleblock h1 {
+        margin: 0;
+        font-size: 26px;
+        letter-spacing: -0.01em;
+      }
+      header.top .titleblock .sub {
+        color: var(--fg-soft);
+        margin-top: 4px;
+        font-size: 14px;
+      }
+      header.top .titleblock .tag {
+        display: inline-block;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-family: var(--font-mono);
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        margin-left: 8px;
+        vertical-align: middle;
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .btn {
+        background: var(--bg-elev);
+        color: var(--fg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 8px 12px;
+        font-size: 13px;
+        cursor: pointer;
+        font-family: inherit;
+        transition: background 0.15s ease, border-color 0.15s ease;
+      }
+      .btn:hover {
+        background: var(--bg-soft);
+        border-color: var(--border-strong);
+      }
+      .btn.ghost {
+        background: transparent;
+      }
+
+      .overall {
+        margin: 28px 0 20px;
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 20px;
+        box-shadow: var(--shadow-sm);
+      }
+      .overall .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .overall .pct {
+        font-family: var(--font-mono);
+        font-size: 28px;
+        letter-spacing: -0.02em;
+        color: var(--fg);
+      }
+      .overall .label {
+        color: var(--fg-soft);
+        font-size: 13px;
+      }
+      .overall .bar {
+        margin-top: 14px;
+        height: 8px;
+        background: var(--bg-soft);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .overall .bar > div {
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          var(--accent) 0%,
+          var(--st-ok) 100%
+        );
+        width: 0%;
+        transition: width 0.4s ease;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 22px;
+      }
+      .stats .stat {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        padding: 12px;
+      }
+      .stats .stat .n {
+        font-family: var(--font-mono);
+        font-size: 22px;
+        letter-spacing: -0.02em;
+      }
+      .stats .stat .l {
+        color: var(--fg-soft);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      @media (max-width: 720px) {
+        .stats {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 20px;
+      }
+      .chip {
+        background: var(--bg-elev);
+        color: var(--fg-soft);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        user-select: none;
+        transition: all 0.15s ease;
+      }
+      .chip:hover {
+        border-color: var(--border-strong);
+      }
+      .chip.active {
+        background: var(--fg);
+        color: var(--bg);
+        border-color: var(--fg);
+      }
+      .chip .count {
+        font-family: var(--font-mono);
+        margin-left: 4px;
+        opacity: 0.7;
+      }
+
+      .phases {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .phase {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+      .phase:hover {
+        border-color: var(--border-strong);
+      }
+      .phase.expanded {
+        box-shadow: var(--shadow-md);
+      }
+
+      .phase .head {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 16px;
+        align-items: center;
+        padding: 16px 18px;
+        cursor: pointer;
+      }
+      .phase .head .id {
+        font-family: var(--font-mono);
+        color: var(--fg-mute);
+        font-size: 12px;
+        min-width: 56px;
+      }
+      .phase .head .title h3 {
+        margin: 0;
+        font-size: 16px;
+        letter-spacing: -0.01em;
+      }
+      .phase .head .title .sum {
+        color: var(--fg-soft);
+        font-size: 13px;
+        margin-top: 2px;
+      }
+      .phase .head .right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-weight: 500;
+        background: var(--bg-soft);
+        color: var(--fg-soft);
+        border: 1px solid var(--border);
+        white-space: nowrap;
+      }
+      .badge .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: var(--fg-mute);
+      }
+      .badge.st-na .dot {
+        background: var(--st-na);
+      }
+      .badge.st-pl .dot {
+        background: var(--st-pl);
+      }
+      .badge.st-ip .dot {
+        background: var(--st-ip);
+      }
+      .badge.st-bl .dot {
+        background: var(--st-bl);
+      }
+      .badge.st-ok .dot {
+        background: var(--st-ok);
+      }
+      .badge.st-cx .dot {
+        background: var(--st-cx);
+      }
+
+      .caret {
+        color: var(--fg-mute);
+        transition: transform 0.2s ease;
+        font-family: var(--font-mono);
+      }
+      .phase.expanded .caret {
+        transform: rotate(90deg);
+      }
+
+      .body {
+        display: none;
+        padding: 4px 18px 22px;
+        border-top: 1px solid var(--border);
+        background: var(--bg-soft);
+      }
+      .phase.expanded .body {
+        display: block;
+      }
+
+      .section {
+        margin-top: 18px;
+      }
+      .section h4 {
+        margin: 0 0 8px;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--fg-mute);
+      }
+      .section ul,
+      .section ol {
+        margin: 0;
+        padding-left: 18px;
+      }
+      .section li {
+        margin: 4px 0;
+        color: var(--fg);
+      }
+      .section li.muted {
+        color: var(--fg-soft);
+      }
+      .section p {
+        margin: 0;
+        color: var(--fg);
+      }
+      .section .pill {
+        display: inline-block;
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--fg-soft);
+        margin-right: 4px;
+      }
+
+      .controls {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 22px;
+        padding-top: 16px;
+        border-top: 1px dashed var(--border);
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .statepicker {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .statepicker .pickbtn {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        padding: 5px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--bg-elev);
+        color: var(--fg-soft);
+        cursor: pointer;
+      }
+      .statepicker .pickbtn:hover {
+        border-color: var(--border-strong);
+      }
+      .statepicker .pickbtn.active {
+        color: var(--fg);
+        border-color: var(--fg);
+      }
+      .meta-source {
+        color: var(--fg-mute);
+        font-size: 11px;
+        font-family: var(--font-mono);
+      }
+
+      footer {
+        margin-top: 40px;
+        padding-top: 18px;
+        border-top: 1px solid var(--border);
+        color: var(--fg-mute);
+        font-size: 12px;
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .empty {
+        text-align: center;
+        padding: 40px;
+        color: var(--fg-mute);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="top">
+        <div class="titleblock">
+          <h1>
+            Claude Code HUD — Progress
+            <span class="tag">docs · v1</span>
+          </h1>
+          <div class="sub">
+            Self-contained roadmap tracker. Progress is stored locally in your
+            browser; share by committing this file's defaults instead.
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn ghost" id="themeBtn" title="Toggle theme">
+            Theme
+          </button>
+          <button class="btn ghost" id="resetBtn" title="Reset local overrides">
+            Reset
+          </button>
+        </div>
+      </header>
+
+      <div class="overall">
+        <div class="row">
+          <div>
+            <div class="label">Overall completion</div>
+            <div class="pct" id="overallPct">0%</div>
+          </div>
+          <div style="text-align: right">
+            <div class="label">Phases complete</div>
+            <div class="pct" id="overallFrac">0 / 10</div>
+          </div>
+        </div>
+        <div class="bar"><div id="overallBar"></div></div>
+      </div>
+
+      <div class="stats" id="stats"></div>
+      <div class="filters" id="filters"></div>
+      <div class="phases" id="phases"></div>
+
+      <footer>
+        <span>Built for the LivoClouds Claude Code HUD project.</span>
+        <span class="meta-source">docs/v1/progress.html</span>
+      </footer>
+    </div>
+
+    <script>
+      // ---------------------------------------------------------------------
+      // PHASE DATA — source of truth for the tracker.
+      // Keep parallel to the per-phase markdown files in ./phases/.
+      // ---------------------------------------------------------------------
+      const STATES = [
+        { key: "na", label: "Not Started", icon: "⚪", css: "st-na" },
+        { key: "pl", label: "Planned", icon: "🔵", css: "st-pl" },
+        { key: "ip", label: "In Progress", icon: "🟡", css: "st-ip" },
+        { key: "bl", label: "Blocked", icon: "🟠", css: "st-bl" },
+        { key: "ok", label: "Complete", icon: "🟢", css: "st-ok" },
+        { key: "cx", label: "Cancelled", icon: "🔴", css: "st-cx" },
+      ];
+      const STATE_BY_KEY = Object.fromEntries(STATES.map((s) => [s.key, s]));
+
+      const PHASES = [
+        {
+          id: "phase-0",
+          n: 0,
+          title: "Design Decisions",
+          status: "bl",
+          summary:
+            "Resolve four blocking decisions: mascot art direction, visual tone, package manager, and local port.",
+          outcome:
+            "All four design questions are answered and documented, unblocking implementation.",
+          dependsOn: [],
+          blocks: ["phase-1", "phase-6", "phase-7"],
+          inScope: [
+            "Discussion and final decisions for D-0.1 to D-0.4",
+            "Recording decision (and discarded options) inside phase-0 file",
+            "CHANGELOG entry sealing Phase 0",
+          ],
+          outOfScope: [
+            "Producing the mascot artwork (lands in Phase 6)",
+            "Committing design tokens or theme files (lands in Phase 1)",
+          ],
+          decisions: [
+            "D-0.1 Mascot art direction (A stylized ✦ / B custom / C AI sprites)",
+            "D-0.2 Visual tone (Glassmorphism / Neo-terminal / Minimalist / Editorial)",
+            "D-0.3 Package manager (default: pnpm)",
+            "D-0.4 Local port (default: 3000)",
+          ],
+          deliverables: [
+            "phase-0-design-decisions.md with the Decisions Resolved table filled in",
+            "docs/CHANGELOG.md entry",
+          ],
+          acceptance: [
+            "Each of D-0.1 through D-0.4 has a recorded answer",
+            "Phase moves from 🟠 Blocked to 🟢 Complete",
+            "Sealed-on-YYYY-MM-DD line in CHANGELOG",
+          ],
+          tasks: [
+            "Review D-0.1 and D-0.2 with project owner",
+            "Confirm D-0.3 and D-0.4 or document overrides",
+            "Fill the Decisions Resolved section",
+            "Add CHANGELOG entry",
+            "Update status in index and tracker",
+          ],
+          risks: [
+            "D-0.1 is the most expensive to flip after Phase 6; D-0.2 after Phase 7",
+            "Bikeshedding on visual tone — cap to one session, default if no consensus",
+          ],
+        },
+        {
+          id: "phase-1",
+          n: 1,
+          title: "Scaffold",
+          status: "na",
+          summary:
+            "pnpm workspace + Next.js 16 app + contracts package; pnpm dev renders an empty shell.",
+          outcome:
+            "`pnpm install && pnpm dev` renders an empty Next.js HUD shell at http://localhost:3000.",
+          dependsOn: ["phase-0"],
+          blocks: ["phase-2"],
+          inScope: [
+            "pnpm-workspace.yaml + root package.json + base tsconfig",
+            "apps/hud (Next.js 16, App Router, TS strict, Tailwind 4)",
+            "packages/contracts (empty, ready for Zod schemas)",
+            "hooks/claude-hook.sh placeholder",
+            "ESLint flat + Prettier",
+          ],
+          outOfScope: [
+            "HudEventSchema (Phase 2)",
+            "API routes (Phase 3)",
+            "Hook payload handling (Phase 4)",
+            "Real UI (Phase 5)",
+            "Mascot (Phase 6)",
+          ],
+          decisions: ["All Phase 0 decisions feed in here; none open at this phase"],
+          deliverables: [
+            "Workspace root and config files",
+            "apps/hud running placeholder",
+            "packages/contracts skeleton",
+            "hooks/claude-hook.sh stub",
+          ],
+          acceptance: [
+            "pnpm install succeeds without warnings",
+            "pnpm dev renders placeholder, HMR works",
+            "pnpm lint passes (zero errors)",
+            "pnpm typecheck passes (zero errors)",
+            "apps/hud imports a value from @livoclouds/contracts",
+          ],
+          tasks: [
+            "pnpm init at root with private:true and packageManager field",
+            "Create pnpm-workspace.yaml",
+            "Add tsconfig.base.json with strict TS",
+            "Scaffold apps/hud",
+            "Configure Tailwind 4 with @theme {}",
+            "Scaffold packages/contracts and wire as workspace dep",
+            "Add root scripts: dev, build, lint, typecheck, format",
+            "Create hooks/claude-hook.sh stub",
+            "Smoke-test acceptance criteria",
+            "Open PR: chore: scaffold monorepo (Phase 1)",
+          ],
+          risks: [
+            "Next.js 16 + React 19 minor dependency surprises — pin versions",
+            "Tailwind 4 plugin lag — stay on core feature set",
+            "Workspace ergonomics — document workspace:* refs",
+          ],
+        },
+        {
+          id: "phase-2",
+          n: 2,
+          title: "Event Contract",
+          status: "na",
+          summary:
+            "Zod schema for every Claude Code hook the HUD will consume, with discriminated-union types and Vitest fixtures.",
+          outcome:
+            "@livoclouds/contracts exports HudEventSchema covering all subscribed Claude Code hooks.",
+          dependsOn: ["phase-1"],
+          blocks: ["phase-3", "phase-4"],
+          inScope: [
+            "packages/contracts/src/event.ts (schema + inferred types)",
+            "packages/contracts/src/index.ts (public exports)",
+            "Vitest suite with positive and negative fixtures",
+            "Anonymized real-shape fixtures per event variant",
+            "packages/contracts/README.md usage doc",
+          ],
+          outOfScope: [
+            "Ingest route handler (Phase 3)",
+            "Hook script producing payloads (Phase 4)",
+            "OTel ingest (deferred to Phase 3 sub-task or v2)",
+          ],
+          decisions: [
+            "D-2.1 Hook set covered in v1 (default: 8 mapped hook types)",
+            "D-2.2 Numeric units (tokens integer, USD float, contextPct 0–100)",
+          ],
+          deliverables: [
+            "packages/contracts/{src,tests,fixtures}",
+            "Vitest passing",
+            "README.md with examples",
+          ],
+          acceptance: [
+            "Every fixture parses successfully",
+            "Malformed fixtures rejected with precise error paths",
+            "pnpm --filter @livoclouds/contracts test passes",
+            "apps/hud imports types and schema with no bundler error",
+          ],
+          tasks: [
+            "Confirm proposed hook mapping in D-2.1",
+            "Implement schema with discriminated union on type",
+            "Capture and anonymize fixtures from real Claude Code hooks",
+            "Write positive and negative Vitest cases",
+            "Document schema in package README",
+            "Open PR: feat(contracts): HudEventSchema and tests (Phase 2)",
+          ],
+          risks: [
+            "Hook shape changes between Claude Code releases — mark CC version on fixtures",
+            "Field drift — normalize in ingest, keep schema HUD-facing only",
+          ],
+        },
+        {
+          id: "phase-3",
+          n: 3,
+          title: "Backend (Ingest, Bus, SSE)",
+          status: "na",
+          summary:
+            "POST /api/events + in-memory bus + GET /api/stream SSE + rolling JSONL log; all in-process.",
+          outcome:
+            "A curl POST to /api/events reaches every connected EventSource within 500 ms.",
+          dependsOn: ["phase-2"],
+          blocks: ["phase-4", "phase-5"],
+          inScope: [
+            "POST /api/events with bearer-token auth + Zod validation",
+            "In-memory ring buffer bus.ts (bounded to N)",
+            "GET /api/stream SSE with 15s heartbeat",
+            "JSONL daily rotation (data/events-YYYY-MM-DD.jsonl)",
+            "pnpm hud:token script (gen-token.ts)",
+          ],
+          outOfScope: [
+            "Hook script (Phase 4) — use curl until then",
+            "UI subscriber (Phase 5)",
+            "OTel /api/otlp/v1/metrics — documented, deferred or v2",
+          ],
+          decisions: [
+            "D-3.1 Bus size (default: 1000 events)",
+            "D-3.2 JSONL rotation (default: daily UTC)",
+            "D-3.3 Reconnect replay window (default: bus replay since Last-Event-ID)",
+          ],
+          deliverables: [
+            "apps/hud/app/api/events/route.ts",
+            "apps/hud/app/api/stream/route.ts",
+            "apps/hud/lib/{bus,sse,log}.ts",
+            "apps/hud/scripts/gen-token.ts",
+            ".env.example",
+          ],
+          acceptance: [
+            "curl POST → 204 and event appears in JSONL log",
+            "curl -N stream receives event within ~50 ms of POST",
+            "Two parallel subscribers both receive the same event",
+            "JSONL survives process restart; bus does not (by design)",
+            "Bad token → 401; bad schema → 400 with Zod path",
+            "15s idle emits heartbeat",
+          ],
+          tasks: [
+            "Implement bus.ts (publish/subscribe/snapshot/replaySince)",
+            "Implement log.ts with lazy daily rotation",
+            "Implement sse.ts with Response builder + heartbeat",
+            "Implement POST /api/events (validate token → Zod → publish → log)",
+            "Implement GET /api/stream (subscribe → write SSE frames → cleanup)",
+            "Implement gen-token.ts (idempotent .env.local write)",
+            "Write scripts/smoke-stream.sh for testing",
+            "Open PR: feat(server): ingest, bus, SSE (Phase 3)",
+          ],
+          risks: [
+            "Edge runtime + long-lived SSE collisions — pin Node runtime",
+            "Concurrent JSONL writes if multi-process — single-process v1",
+            "Proxy buffering of EventSource — heartbeat + no-cache headers",
+          ],
+        },
+        {
+          id: "phase-4",
+          n: 4,
+          title: "Hook Script & Installer",
+          status: "na",
+          summary:
+            "Bash hook + Node installer to wire Claude Code into the HUD. Hook is non-blocking on failure.",
+          outcome:
+            "A real Claude Code session emits live events into the HUD without manual curl.",
+          dependsOn: ["phase-2", "phase-3"],
+          blocks: ["phase-5"],
+          inScope: [
+            "hooks/claude-hook.sh (reads stdin, normalizes, POSTs)",
+            "pnpm hud:install-hook (idempotent settings.json merge)",
+            "pnpm hud:uninstall-hook (clean removal)",
+            "--dry-run flag on both",
+            "Failure handling (logs to ~/.claude/hud-hook.log, exits 0)",
+            "docs/v1/setup/setup-hook.md",
+          ],
+          outOfScope: [
+            "GUI hook configuration (CLI only in v1)",
+            "Remote installation (local only)",
+            "Notification → mascot mapping nuance (Phase 6, client-side)",
+          ],
+          decisions: [
+            "D-4.1 Hook language (default: bash + jq + curl)",
+            "D-4.2 settings.json merge (deep-merge + .bak)",
+            "D-4.3 Failure budget (250 ms; exit 0 on timeout)",
+          ],
+          deliverables: [
+            "hooks/claude-hook.sh",
+            "apps/hud/scripts/install-hook.ts",
+            "apps/hud/scripts/uninstall-hook.ts",
+            "docs/v1/setup/setup-hook.md",
+          ],
+          acceptance: [
+            "install-hook on clean settings adds block + .bak",
+            "Re-running install-hook is a no-op",
+            "uninstall-hook removes only the HUD block",
+            "Each subscribed hook produces a matching HUD event end-to-end",
+            "HUD down → hook does not block Claude Code; logs and exits 0",
+            "--dry-run prints diff without writing",
+          ],
+          tasks: [
+            "Author hook bash script",
+            "Source token from ~/.claude/livo-clouds-hud.env",
+            "Implement TS installer with fs/json (.bak policy)",
+            "Implement uninstaller as inverse",
+            "Write setup-hook.md",
+            "End-to-end smoke with real Claude Code session",
+            "Open PR: feat(hooks): real Claude Code → HUD hook + installer (Phase 4)",
+          ],
+          risks: [
+            "Claude Code settings.json schema changes — central known-hooks list",
+            "jq missing on minimal Linux — friendly install hint, exit 0",
+            "Settings corruption — .bak + --dry-run",
+          ],
+        },
+        {
+          id: "phase-5",
+          n: 5,
+          title: "Live View",
+          status: "na",
+          summary:
+            "First visible UI: session card, tokens, cost, model, context ring, last tool — all reacting to SSE.",
+          outcome:
+            "Opening / in a browser shows live tokens, cost, model, context %, last tool, all updating without refresh.",
+          dependsOn: ["phase-3", "phase-4"],
+          blocks: ["phase-6"],
+          inScope: [
+            "apps/hud/app/page.tsx (RSC with bus snapshot)",
+            "live components: SessionCard, TokenStat, CostStat, ContextRing, LastTool",
+            "lib/store.ts Zustand store",
+            "lib/sse-client.ts EventSource hook with reconnect",
+            "Counter animations with Motion",
+          ],
+          outOfScope: [
+            "Mascot (Phase 6)",
+            "Theme toggle, /sessions, /cost, gestures (Phase 7)",
+            "PWA install (Phase 8)",
+          ],
+          decisions: [
+            "D-5.1 Number-change animation (default: useSpring 200/30, capped 600ms)",
+            "D-5.2 Context-ring thresholds (neutral 0–70%, amber 70–90%, red 90+)",
+            "D-5.3 Last-tool definition (latest tool.use for active session)",
+          ],
+          deliverables: [
+            "apps/hud/app/page.tsx + _components/live/*",
+            "apps/hud/lib/{store,sse-client}.ts",
+          ],
+          acceptance: [
+            "Hard refresh during a session shows current totals, no Loading state",
+            "Synthetic tool.use updates UI within 500 ms",
+            "Tab close + reopen reconnects via Last-Event-ID",
+            "Context ring color crosses thresholds correctly",
+            "Readable on iPad portrait (1024×768) and landscape (1366×1024)",
+          ],
+          tasks: [
+            "Build store reducing events into session totals",
+            "Build SSE client hook with reconnect + visibilitychange",
+            "Build presentational components in order",
+            "Wire page.tsx with RSC snapshot + provider boundary",
+            "Add scripts/synth-event.sh for local testing",
+            "iPad visual review over LAN",
+            "Open PR: feat(ui): live view (Phase 5)",
+          ],
+          risks: [
+            "RSC snapshot vs. client store hydration mismatch — pass identical shape",
+            "iPad Safari backgrounded tab suspend — visibilitychange reopen",
+            "Layout jank on long tool names — truncate + tooltip",
+          ],
+        },
+        {
+          id: "phase-6",
+          n: 6,
+          title: "Mascot",
+          status: "na",
+          summary:
+            "Lottie-based mascot driven by a declarative state machine over the event log.",
+          outcome:
+            "An animated mascot sits at the visual center and reacts to every subscribed event in real time.",
+          dependsOn: ["phase-0", "phase-5"],
+          blocks: ["phase-7"],
+          inScope: [
+            "Lottie React integration",
+            "lib/mascot/state.ts pure derivation function",
+            "Idle micro-animations per state",
+            "Smooth transitions between states (AnimatePresence)",
+            "prefers-reduced-motion handling",
+            "Hidden /mascot diagnostics route to QA each state",
+          ],
+          outOfScope: [
+            "Producing the artwork (consumed from Phase 0 decision)",
+            "Sound effects (out of v1)",
+          ],
+          decisions: [
+            "D-6.1 Asset format (depends on D-0.1)",
+            "D-6.2 State priority on conflicts (latest event wins)",
+            "D-6.3 Idle timeout (default: 30 s)",
+          ],
+          deliverables: [
+            "apps/hud/app/_components/mascot/Mascot.tsx",
+            "apps/hud/lib/mascot/{state,timeouts}.ts",
+            "Lottie JSON per state under assets/",
+            "apps/hud/app/mascot/page.tsx diagnostics route",
+          ],
+          acceptance: [
+            "Every state in CLAUDE.md §7 reachable from diagnostics",
+            "Live session transitions match event log",
+            "60 fps on iPad 2021 (verified in Web Inspector)",
+            "prefers-reduced-motion: reduce → static frame per state",
+            "30 s silence → returns to idle",
+          ],
+          tasks: [
+            "Build Mascot.tsx with Lottie based on prop",
+            "Build state.ts as pure function over events",
+            "Wire mascot to Zustand store via selector",
+            "Implement diagnostics route",
+            "Produce Lottie assets per D-6.1",
+            "Tune transitions with Motion (AnimatePresence wait mode)",
+            "Performance pass on iPad 2021",
+            "Open PR: feat(mascot): state machine and Lottie integration (Phase 6)",
+          ],
+          risks: [
+            "Lottie file size hurts first paint — budget <60 KB gz, vector-only",
+            "Cross-fade flicker on transitions — AnimatePresence wait mode",
+            "React 19 transition drift — render mascot outside page boundary",
+          ],
+        },
+        {
+          id: "phase-7",
+          n: 7,
+          title: "Polish & Secondary Views",
+          status: "na",
+          summary:
+            "Visual tone, theme, sessions/cost pages, swipe gestures, long-press sheets, reduced-motion.",
+          outcome:
+            "The HUD has visual polish, secondary views (/sessions, /cost), and feels native to touch.",
+          dependsOn: ["phase-5", "phase-6"],
+          blocks: ["phase-8"],
+          inScope: [
+            "Theme provider via next-themes, persisted system preference",
+            "Visual tone from D-0.2 applied across components",
+            "/sessions: last-14-day list with totals",
+            "/cost: timeseries chart (Recharts) of cost + tokens",
+            "Swipe gestures across top-level views",
+            "Long-press → slide-up MetricSheet",
+            "prefers-reduced-motion across mascot, counters, gestures",
+          ],
+          outOfScope: [
+            "PWA install (Phase 8)",
+            "Pi 5 kiosk (Phase 9)",
+            "Languages beyond English/Spanish stubs",
+          ],
+          decisions: [
+            "D-7.1 Sessions horizon (default: last 14 days)",
+            "D-7.2 Cost-chart axis (day buckets default, hour on drill-in)",
+            "D-7.3 Gesture map (swipe L/R, long-press, swipe-down dismiss, tap mascot)",
+          ],
+          deliverables: [
+            "apps/hud/app/{sessions,cost}/page.tsx",
+            "apps/hud/app/_components/{Gestures,MetricSheet,ThemeToggle}.tsx",
+            "apps/hud/lib/{theme,aggregations}.ts",
+            "Extended @theme tokens in globals.css",
+          ],
+          acceptance: [
+            "Theme toggle switches dark ↔ light without flash",
+            "/sessions lists last 14 days, sortable by total cost",
+            "/cost chart renders on iPad portrait + landscape without overflow",
+            "Swipe gestures navigate between primary views",
+            "Long-press opens MetricSheet for the touched metric",
+            "Reduced-motion disables spring physics on swipes",
+            "All views meet <1.5 s first paint on iPad 2021",
+          ],
+          tasks: [
+            "Define color tokens in globals.css for both themes",
+            "Apply visual tone (D-0.2)",
+            "Build Gestures wrapper; integrate with layout",
+            "Build MetricSheet (Radix Dialog under)",
+            "Build lib/aggregations.ts",
+            "Build /sessions and /cost pages",
+            "Reduce-motion pass",
+            "iPad visual QA (portrait + landscape)",
+            "Open PR: feat(ui): polish + sessions + cost (Phase 7)",
+          ],
+          risks: [
+            "JSONL aggregation cost grows linearly — cache per immutable day",
+            "Recharts SSR — dynamic import with ssr:false",
+            "Gesture vs scroll conflicts — axis:'x' constraint",
+          ],
+        },
+        {
+          id: "phase-8",
+          n: 8,
+          title: "PWA & iPad Kiosk",
+          status: "na",
+          summary:
+            "Installable on iPad home screen, kiosk mode, SSE survives WiFi drops; operator setup guide.",
+          outcome:
+            "The HUD installs on iPad with a custom icon, launches without Safari chrome, survives WiFi drops.",
+          dependsOn: ["phase-7"],
+          blocks: [],
+          inScope: [
+            "manifest.webmanifest with standalone display",
+            "Icon set (apple-touch + maskable PWA)",
+            "iPad splash images",
+            "Service worker (shell-only cache)",
+            "EventSource reconnect on online event",
+            "ConnectionBanner with disconnected state",
+            "docs/v1/setup/setup-ipad.md",
+          ],
+          outOfScope: [
+            "Background operation (HUD only useful when visible)",
+            "Push notifications",
+            "Auto-launch on iPad boot (covered by Guided Access)",
+          ],
+          decisions: [
+            "D-8.1 Service worker scope (shell only, never event data)",
+            "D-8.2 Reconnect strategy (2 s on error, immediate on online)",
+            "D-8.3 Icon style (mascot-derived, maskable)",
+          ],
+          deliverables: [
+            "apps/hud/public/manifest.webmanifest + icons + splash",
+            "apps/hud/app/_components/ConnectionBanner.tsx",
+            "apps/hud/next.config.ts PWA wiring",
+            "docs/v1/setup/setup-ipad.md",
+          ],
+          acceptance: [
+            "iPad Add to Home Screen launches HUD full-screen, no Safari chrome",
+            "Splash image matches iPad resolution",
+            "10 s WiFi drop → banner appears, reconnects on restore",
+            "Lighthouse PWA score ≥ 90 desktop",
+            "Operator goes from clean iPad to kiosk-ready in <5 min via guide",
+          ],
+          tasks: [
+            "Generate icon and splash assets",
+            "Write manifest.webmanifest",
+            "Wire service worker (cache shell only)",
+            "Implement ConnectionBanner + reconnect strategy",
+            "Add apple-touch and splash meta to layout.tsx",
+            "Author setup-ipad.md (WiFi/Tailscale, Add to Home, Auto-Lock, Guided Access, brightness)",
+            "Real-iPad smoke test",
+            "Open PR: feat(pwa): iPad-installable HUD + operator guide (Phase 8)",
+          ],
+          risks: [
+            "iOS Add-to-Home-Screen quirks — test on target iPad early",
+            "Service-worker cache busting during dev — hash-based shell URLs",
+          ],
+        },
+        {
+          id: "phase-9",
+          n: 9,
+          title: "Raspberry Pi 5 Kiosk (opt-in)",
+          status: "na",
+          summary:
+            "Reproducible setup from blank Pi OS to a Chromium kiosk booting into the HUD.",
+          outcome:
+            "A Raspberry Pi 5 + HDMI panel boots directly into the HUD running in Chromium kiosk mode.",
+          dependsOn: ["phase-7"],
+          blocks: [],
+          inScope: [
+            "docs/v1/setup/setup-raspberry-pi-kiosk.md (full guide)",
+            "deploy/raspberry-pi/setup.sh (apt + Chromium + unclutter)",
+            "deploy/raspberry-pi/kiosk.service (systemd --user unit)",
+            "deploy/raspberry-pi/xrandr-rotate.sh (portrait helper)",
+            "Hardware compatibility notes",
+          ],
+          outOfScope: [
+            "Running Claude Code on the Pi (Pi is sink, not source)",
+            "Bespoke distro image — stock Raspberry Pi OS",
+            "Battery / UPS guidance",
+          ],
+          decisions: [
+            "D-9.1 Browser (default: Chromium with kiosk flags)",
+            "D-9.2 Network model (LAN default; Tailscale documented)",
+            "D-9.3 Rotation (xrandr if ROTATE env set)",
+          ],
+          deliverables: [
+            "deploy/raspberry-pi/* scripts and systemd unit",
+            "docs/v1/setup/setup-raspberry-pi-kiosk.md",
+          ],
+          acceptance: [
+            "Fresh Pi OS → kiosk-ready following guide, no manual login",
+            "Screen never sleeps; cursor hidden after 1 s idle",
+            "Pi reboot recovers HUD automatically",
+            "Touch input drives the same gestures as iPad",
+            "Network drop/recover behaves like iPad",
+          ],
+          tasks: [
+            "Author guide step-by-step on real Pi 5",
+            "Iterate on setup.sh for idempotency",
+            "Test kiosk.service across reboots/crashes",
+            "Capture working kiosk screenshots",
+            "Document touch-panel calibration if applicable",
+            "Open PR: docs+deploy: Raspberry Pi 5 kiosk (Phase 9)",
+          ],
+          risks: [
+            "Chromium GPU instability on Pi OS — pin tested OS combo in guide",
+            "Touch driver gaps on third-party panels — list verified panels only",
+          ],
+        },
+      ];
+
+      // ---------------------------------------------------------------------
+      // State (with localStorage override)
+      // ---------------------------------------------------------------------
+      const LS_KEY = "hud-progress-v1";
+
+      function loadOverrides() {
+        try {
+          return JSON.parse(localStorage.getItem(LS_KEY) || "{}");
+        } catch {
+          return {};
+        }
+      }
+      function saveOverrides(o) {
+        localStorage.setItem(LS_KEY, JSON.stringify(o));
+      }
+      let overrides = loadOverrides();
+      let filter = "all";
+      let expanded = new Set();
+
+      function effectiveStatus(p) {
+        return overrides[p.id]?.status || p.status;
+      }
+      function isOverridden(p) {
+        return overrides[p.id]?.status && overrides[p.id].status !== p.status;
+      }
+
+      // ---------------------------------------------------------------------
+      // Render
+      // ---------------------------------------------------------------------
+      const $ = (sel) => document.querySelector(sel);
+
+      function statBadge(stateKey) {
+        const s = STATE_BY_KEY[stateKey];
+        return `<span class="badge ${s.css}"><span class="dot"></span>${s.label}</span>`;
+      }
+
+      function renderStats() {
+        const counts = STATES.map((s) => ({
+          key: s.key,
+          label: s.label,
+          icon: s.icon,
+          n: PHASES.filter((p) => effectiveStatus(p) === s.key).length,
+        }));
+        $("#stats").innerHTML = counts
+          .map(
+            (c) =>
+              `<div class="stat"><div class="n">${c.n}</div><div class="l">${c.icon} ${c.label}</div></div>`,
+          )
+          .join("");
+      }
+
+      function renderFilters() {
+        const total = PHASES.length;
+        const totalChip = `<div class="chip ${
+          filter === "all" ? "active" : ""
+        }" data-filter="all">All <span class="count">${total}</span></div>`;
+        const stateChips = STATES.map((s) => {
+          const n = PHASES.filter((p) => effectiveStatus(p) === s.key).length;
+          if (n === 0) return "";
+          return `<div class="chip ${
+            filter === s.key ? "active" : ""
+          }" data-filter="${s.key}">${s.icon} ${
+            s.label
+          } <span class="count">${n}</span></div>`;
+        }).join("");
+        $("#filters").innerHTML = totalChip + stateChips;
+        $("#filters")
+          .querySelectorAll(".chip")
+          .forEach((el) => {
+            el.addEventListener("click", () => {
+              filter = el.dataset.filter;
+              renderFilters();
+              renderPhases();
+            });
+          });
+      }
+
+      function renderOverall() {
+        const done = PHASES.filter((p) => effectiveStatus(p) === "ok").length;
+        const total = PHASES.length;
+        const pct = Math.round((done / total) * 100);
+        $("#overallPct").textContent = pct + "%";
+        $("#overallFrac").textContent = `${done} / ${total}`;
+        $("#overallBar").style.width = pct + "%";
+      }
+
+      function renderList(arr) {
+        if (!arr.length)
+          return `<div class="empty">No phases match this filter.</div>`;
+        return `<ul>${arr.map((x) => `<li>${x}</li>`).join("")}</ul>`;
+      }
+
+      function renderPills(ids) {
+        if (!ids?.length) return `<span class="pill">—</span>`;
+        return ids.map((id) => `<span class="pill">${id}</span>`).join("");
+      }
+
+      function statePicker(p) {
+        return STATES.map(
+          (s) =>
+            `<button class="pickbtn ${
+              effectiveStatus(p) === s.key ? "active" : ""
+            }" data-set="${s.key}">${s.icon} ${s.label}</button>`,
+        ).join("");
+      }
+
+      function renderPhases() {
+        const list = PHASES.filter(
+          (p) => filter === "all" || effectiveStatus(p) === filter,
+        );
+        $("#phases").innerHTML = list
+          .map((p) => {
+            const isExp = expanded.has(p.id);
+            const status = effectiveStatus(p);
+            const overridden = isOverridden(p);
+            return `
+            <div class="phase ${isExp ? "expanded" : ""}" data-id="${p.id}">
+              <div class="head" data-toggle="${p.id}">
+                <div class="id">${p.id}</div>
+                <div class="title">
+                  <h3>${p.title}</h3>
+                  <div class="sum">${p.summary}</div>
+                </div>
+                <div class="right">
+                  ${statBadge(status)}
+                  ${
+                    overridden
+                      ? `<span class="meta-source" title="Status overridden locally">local</span>`
+                      : ""
+                  }
+                  <span class="caret">›</span>
+                </div>
+              </div>
+              <div class="body">
+                <div class="section">
+                  <h4>Target outcome</h4>
+                  <p>${p.outcome}</p>
+                </div>
+                <div class="section">
+                  <h4>Dependencies</h4>
+                  <p>Depends on: ${renderPills(
+                    p.dependsOn,
+                  )}<br/>Blocks: ${renderPills(p.blocks)}</p>
+                </div>
+                <div class="section">
+                  <h4>In scope</h4>
+                  ${renderList(p.inScope)}
+                </div>
+                <div class="section">
+                  <h4>Out of scope</h4>
+                  ${renderList(p.outOfScope)}
+                </div>
+                <div class="section">
+                  <h4>Open decisions</h4>
+                  ${renderList(p.decisions)}
+                </div>
+                <div class="section">
+                  <h4>Deliverables</h4>
+                  ${renderList(p.deliverables)}
+                </div>
+                <div class="section">
+                  <h4>Acceptance criteria</h4>
+                  ${renderList(p.acceptance)}
+                </div>
+                <div class="section">
+                  <h4>Tasks</h4>
+                  <ol>${p.tasks.map((t) => `<li>${t}</li>`).join("")}</ol>
+                </div>
+                <div class="section">
+                  <h4>Risks</h4>
+                  ${renderList(p.risks)}
+                </div>
+                <div class="controls">
+                  <div class="statepicker" data-id="${p.id}">${statePicker(p)}</div>
+                  <span class="meta-source">phases/${p.id}-*.md</span>
+                </div>
+              </div>
+            </div>
+          `;
+          })
+          .join("");
+
+        $("#phases")
+          .querySelectorAll("[data-toggle]")
+          .forEach((el) => {
+            el.addEventListener("click", () => {
+              const id = el.getAttribute("data-toggle");
+              if (expanded.has(id)) expanded.delete(id);
+              else expanded.add(id);
+              renderPhases();
+            });
+          });
+
+        $("#phases")
+          .querySelectorAll(".statepicker")
+          .forEach((sp) => {
+            const id = sp.getAttribute("data-id");
+            sp.querySelectorAll(".pickbtn").forEach((btn) => {
+              btn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const key = btn.getAttribute("data-set");
+                overrides[id] = { status: key };
+                saveOverrides(overrides);
+                renderOverall();
+                renderStats();
+                renderFilters();
+                renderPhases();
+              });
+            });
+          });
+      }
+
+      // ---------------------------------------------------------------------
+      // Theme
+      // ---------------------------------------------------------------------
+      function initTheme() {
+        const saved = localStorage.getItem("hud-theme");
+        if (saved) document.documentElement.setAttribute("data-theme", saved);
+        $("#themeBtn").addEventListener("click", () => {
+          const cur = document.documentElement.getAttribute("data-theme");
+          const next = cur === "dark" ? "light" : "dark";
+          document.documentElement.setAttribute("data-theme", next);
+          localStorage.setItem("hud-theme", next);
+        });
+      }
+
+      function initReset() {
+        $("#resetBtn").addEventListener("click", () => {
+          if (
+            confirm(
+              "Reset local status overrides and theme back to defaults?",
+            )
+          ) {
+            localStorage.removeItem(LS_KEY);
+            localStorage.removeItem("hud-theme");
+            overrides = {};
+            document.documentElement.removeAttribute("data-theme");
+            renderAll();
+          }
+        });
+      }
+
+      function renderAll() {
+        renderOverall();
+        renderStats();
+        renderFilters();
+        renderPhases();
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        initTheme();
+        initReset();
+        renderAll();
+      });
+    </script>
+  </body>
+</html>
