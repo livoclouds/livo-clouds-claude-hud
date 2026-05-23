@@ -6,9 +6,10 @@ import type { HudStoreApi } from './store';
 
 const BACKOFF_BASE_MS = 200;
 const BACKOFF_CAP_MS = 5_000;
-// After this many consecutive failed attempts we escalate the UI from
-// "reconnecting" to "disconnected" — the user has been offline long enough
-// to deserve a more prominent banner.
+// After this many consecutive failed attempts we escalate the store's
+// connection state from "reconnecting" to "disconnected" — the user has been
+// offline long enough that ConnectionBanner switches to its more prominent
+// "Disconnected" copy.
 const DISCONNECTED_AFTER_ATTEMPTS = 3;
 
 type Connection = {
@@ -59,12 +60,21 @@ function attach(url: string, store: HudStoreApi): Connection {
   };
 }
 
+// Lifecycle signal consumed by HudProvider → SseStatusBadge (small always-on
+// health indicator in the StatusBar). The store-based `connectionState`
+// (used by ConnectionBanner) is dispatched in parallel — they're two views of
+// the same lifecycle: a subtle pill that's always present and a prominent
+// banner that only appears during outages.
+export type SseStatus = 'connecting' | 'open' | 'reconnecting';
+
 export type UseEventStreamOptions = {
   url?: string;
+  onStatusChange?: (status: SseStatus) => void;
 };
 
 export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions = {}): void {
   const url = opts.url ?? '/api/stream';
+  const { onStatusChange } = opts;
 
   useEffect(() => {
     let connection: Connection | null = null;
@@ -72,7 +82,13 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
 
+    const notify = (status: SseStatus) => {
+      if (cancelled) return;
+      onStatusChange?.(status);
+    };
+
     const setConnectionState = (state: 'connected' | 'reconnecting' | 'disconnected') => {
+      if (cancelled) return;
       store.getState().actions.setConnectionState(state);
     };
 
@@ -85,6 +101,7 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
 
     const scheduleReconnect = () => {
       if (cancelled) return;
+      notify('reconnecting');
       const delay = Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** backoffAttempt);
       backoffAttempt += 1;
       setConnectionState(
@@ -108,6 +125,7 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
 
       conn.source.addEventListener('open', () => {
         backoffAttempt = 0;
+        notify('open');
         setConnectionState('connected');
       });
 
@@ -132,6 +150,7 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
       }
       clearTimer();
       backoffAttempt = 0;
+      notify('connecting');
       open();
     };
 
@@ -157,8 +176,10 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
       // No point waiting for SSE to time out — flag the UI right away.
       if (cancelled) return;
       setConnectionState('disconnected');
+      notify('reconnecting');
     };
 
+    notify('connecting');
     open();
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('online', onOnline);
@@ -175,5 +196,5 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
         connection = null;
       }
     };
-  }, [store, url]);
+  }, [store, url, onStatusChange]);
 }
