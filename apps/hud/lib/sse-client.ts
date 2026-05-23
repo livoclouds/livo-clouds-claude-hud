@@ -6,6 +6,10 @@ import type { HudStoreApi } from './store';
 
 const BACKOFF_BASE_MS = 200;
 const BACKOFF_CAP_MS = 5_000;
+// After this many consecutive failed attempts we escalate the UI from
+// "reconnecting" to "disconnected" — the user has been offline long enough
+// to deserve a more prominent banner.
+const DISCONNECTED_AFTER_ATTEMPTS = 3;
 
 type Connection = {
   source: EventSource;
@@ -68,6 +72,10 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
 
+    const setConnectionState = (state: 'connected' | 'reconnecting' | 'disconnected') => {
+      store.getState().actions.setConnectionState(state);
+    };
+
     const clearTimer = () => {
       if (reconnectTimer !== null) {
         clearTimeout(reconnectTimer);
@@ -79,6 +87,9 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
       if (cancelled) return;
       const delay = Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** backoffAttempt);
       backoffAttempt += 1;
+      setConnectionState(
+        backoffAttempt >= DISCONNECTED_AFTER_ATTEMPTS ? 'disconnected' : 'reconnecting',
+      );
       clearTimer();
       reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
@@ -97,6 +108,7 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
 
       conn.source.addEventListener('open', () => {
         backoffAttempt = 0;
+        setConnectionState('connected');
       });
 
       conn.source.addEventListener('error', () => {
@@ -112,25 +124,51 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
       });
     };
 
+    const reopenNow = () => {
+      if (cancelled) return;
+      if (connection) {
+        connection.cleanup();
+        connection = null;
+      }
+      clearTimer();
+      backoffAttempt = 0;
+      open();
+    };
+
     const onVisibility = () => {
       if (cancelled) return;
       if (document.visibilityState !== 'visible') return;
       // iPad Safari may suspend backgrounded EventSources; reopen on return.
       if (!connection || connection.source.readyState === EventSource.CLOSED) {
-        if (connection) connection.cleanup();
-        connection = null;
-        clearTimer();
-        backoffAttempt = 0;
-        open();
+        reopenNow();
       }
+    };
+
+    const onOnline = () => {
+      // The browser thinks we're back on the network. Cancel any pending
+      // backoff and reconnect immediately so the banner clears as soon as
+      // possible. Always tears down the prior EventSource first so we never
+      // end up with duplicate subscriptions.
+      if (cancelled) return;
+      reopenNow();
+    };
+
+    const onOffline = () => {
+      // No point waiting for SSE to time out — flag the UI right away.
+      if (cancelled) return;
+      setConnectionState('disconnected');
     };
 
     open();
     document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
 
     return () => {
       cancelled = true;
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
       clearTimer();
       if (connection) {
         connection.cleanup();

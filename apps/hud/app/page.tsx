@@ -1,5 +1,6 @@
 import { bus } from '@/lib/bus';
 import { reduceAll } from '@/lib/store';
+import { ConnectionBanner } from './_components/ConnectionBanner';
 import { HudProvider } from './_components/live/HudProvider';
 import { LiveView } from './_components/live/LiveView';
 
@@ -11,6 +12,7 @@ export default function Page() {
 
   return (
     <HudProvider initial={initial}>
+      <ConnectionBanner />
       <LiveView />
     </HudProvider>
   );

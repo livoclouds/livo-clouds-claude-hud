@@ -1,4 +1,5 @@
 import { EMPTY_STATE } from '@/lib/store';
+import { ConnectionBanner } from '../_components/ConnectionBanner';
 import { HudProvider } from '../_components/live/HudProvider';
 import { MascotDiagnostics } from '../_components/mascot/MascotDiagnostics';
 
@@ -11,6 +12,7 @@ export const runtime = 'nodejs';
 export default function MascotDiagnosticsPage() {
   return (
     <HudProvider initial={EMPTY_STATE}>
+      <ConnectionBanner />
       <MascotDiagnostics />
     </HudProvider>
   );

@@ -33,6 +33,8 @@ export type HudEnvelope = {
   event: HudEvent;
 };
 
+export type ConnectionState = 'connected' | 'reconnecting' | 'disconnected';
+
 export type HudState = {
   session: HudSession | null;
   tokens: HudTokens;
@@ -43,6 +45,7 @@ export type HudState = {
   lastActivityAt: number | null;
   lastEventId: string | null;
   replayTruncated: boolean;
+  connectionState: ConnectionState;
   // Bounded ring of the most recent envelopes (oldest → newest). Consumed by
   // the mascot state derivation; capped so RSC snapshot hydration stays small.
   recentEvents: ReadonlyArray<HudEnvelope>;
@@ -58,6 +61,9 @@ export const EMPTY_STATE: HudState = {
   lastActivityAt: null,
   lastEventId: null,
   replayTruncated: false,
+  // Optimistic default: the page renders as "connected" while the SSE client
+  // mounts. The client will flip this on the first error/online/offline event.
+  connectionState: 'connected',
   recentEvents: [],
 };
 
@@ -182,6 +188,7 @@ export type HudStoreApi = ReturnType<typeof createHudStore>;
 export type HudStoreActions = {
   apply: (envelope: HudEnvelope) => void;
   markReplayTruncated: () => void;
+  setConnectionState: (state: ConnectionState) => void;
   reset: (state: HudState) => void;
 };
 
@@ -198,6 +205,10 @@ export function createHudStore(initial: HudState) {
           return { ...nextState };
         }),
       markReplayTruncated: () => set({ replayTruncated: true }),
+      setConnectionState: (state) =>
+        set((current) =>
+          current.connectionState === state ? current : { connectionState: state },
+        ),
       reset: (state) => set({ ...state }),
     },
   }));

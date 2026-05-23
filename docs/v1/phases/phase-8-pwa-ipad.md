@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Phase ID | `phase-8` |
-| Status | ⚪ Not Started |
+| Status | 🟢 Complete |
 | Depends on | `phase-7` |
 | Blocks | — |
 | Target outcome | The HUD installs on an iPad home screen with a custom icon, launches without Safari chrome, and survives transient WiFi drops |
