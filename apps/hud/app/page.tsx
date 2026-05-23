@@ -1,20 +1,17 @@
-import { HudEventSchema, type HudEvent } from '@livoclouds/contracts';
+import { bus } from '@/lib/bus';
+import { reduceAll } from '@/lib/store';
+import { HudProvider } from './_components/live/HudProvider';
+import { LiveView } from './_components/live/LiveView';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export default function Page() {
-  const eventCount = HudEventSchema.options.length;
-  const sample: HudEvent = {
-    type: 'session.start',
-    sessionId: 'placeholder',
-    ts: 0,
-  };
+  const initial = reduceAll(bus.snapshot());
 
   return (
-    <main className="min-h-screen p-8 font-mono">
-      <h1 className="text-2xl">Claude Code HUD</h1>
-      <p className="mt-2 text-sm opacity-70">
-        Placeholder shell · {eventCount} event variants registered · sample type:{' '}
-        <code>{sample.type}</code>
-      </p>
-    </main>
+    <HudProvider initial={initial}>
+      <LiveView />
+    </HudProvider>
   );
 }

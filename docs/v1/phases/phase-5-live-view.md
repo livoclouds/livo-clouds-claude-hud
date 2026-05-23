@@ -3,7 +3,8 @@
 | Field | Value |
 |---|---|
 | Phase ID | `phase-5` |
-| Status | ⚪ Not Started |
+| Status | 🟢 Complete |
+| Sealed on | 2026-05-23 |
 | Depends on | `phase-3`, `phase-4` |
 | Blocks | `phase-6` |
 | Target outcome | Opening `/` in a browser shows live tokens, cost, model, context %, and last tool, all updating without a refresh |
@@ -42,24 +43,32 @@ data layer is the gate.
 - Theme toggle (dark/light), `/sessions`, `/cost` pages, gestures — Phase 7.
 - PWA install — Phase 8.
 
-## Open Decisions
+## Decisions Resolved
 
-### D-5.1 — Number-change animation style
+### D-5.1 — Number-change animation style — _resolved to default_
 
-**Default proposal**: `useSpring` from Motion with `stiffness: 200, damping: 30`.
-Numbers slide upward when increasing, downward when decreasing. Cap animation
-duration at 600 ms to prevent visible "ticker scroll" on rapid bursts.
+`useSpring` from `motion` with `{ stiffness: 200, damping: 30 }`. The spring
+settles in well under 600 ms, so no extra duration cap is needed. The shared
+`AnimatedNumber` component lives at
+`apps/hud/app/_components/live/AnimatedNumber.tsx` and is used by both
+`TokenStat` and `CostStat`. When `prefers-reduced-motion: reduce` is set, the
+spring jumps directly to the target value (no easing).
 
-### D-5.2 — Context-ring redline
+### D-5.2 — Context-ring redline — _resolved to default_
 
-**Default proposal**: ring color is neutral 0–70 %, amber 70–90 %, red 90–100 %.
-Threshold values can be tuned without code changes via `apps/hud/lib/thresholds.ts`.
+Thresholds centralized in `apps/hud/lib/thresholds.ts` as
+`CONTEXT_THRESHOLDS = { warn: 70, critical: 90 }`. The band helper
+`contextBand(pct)` returns `'neutral' | 'warn' | 'critical'`. `ContextRing`
+maps each band to a CSS variable (`--color-hud-accent` / `--color-hud-warn` /
+`--color-hud-critical`) so the visual identity stays consistent with the
+Phase 0 palette.
 
-### D-5.3 — What counts as "last tool"
+### D-5.3 — What counts as "last tool" — _resolved to default_
 
-**Default proposal**: the most recent `tool.use` event for the active session,
-regardless of which agent emitted it. Sub-agent activity is folded into the
-parent session in v1 (multi-agent breakdown deferred to v2).
+`lastTool` is set from the most recent `tool.use` event for the active
+session. Sub-agent activity is folded into the parent session in v1.
+Long names truncate at 28 characters with the full string preserved in
+`title=` for accessible inspection.
 
 ## Deliverables
 
@@ -101,6 +110,47 @@ apps/hud/
 5. Add a tiny `scripts/synth-event.sh` for local testing without Claude Code.
 6. Visual review on iPad over LAN.
 7. PR titled `feat(ui): live view (Phase 5)`.
+
+## Implementation Notes
+
+- **Snapshot path is RSC-direct.** `app/page.tsx` runs in the Node runtime,
+  imports the in-process `bus` from `apps/hud/lib/bus.ts`, calls
+  `bus.snapshot()`, and folds the envelopes through `reduceAll` (exported from
+  `apps/hud/lib/store.ts`). The same `reduce` function is used by the SSE
+  client to fold live envelopes, guaranteeing identical hydration shape and
+  avoiding the need for a separate `/api/snapshot` route.
+- **Page is dynamic.** `export const dynamic = 'force-dynamic'` keeps the
+  snapshot fresh on every hard refresh during an active session.
+- **Reducer semantics.** `tokens`, `costUsd`, and `contextPct` use
+  latest-snapshot semantics (each `turn.stop` replaces, not sums) to match how
+  Claude Code reports running totals per turn. `session.start` resets all
+  per-session counters. `session.end` freezes the session and applies the
+  final totals if present.
+- **Reconnect.** `EventSource` reconnects natively after the first `id:`
+  frame it receives, sending `Last-Event-ID` automatically. The client adds a
+  `visibilitychange` listener that re-opens the stream when the tab returns
+  from background (iPad Safari may suspend backgrounded EventSources). On
+  persistent errors the client backs off exponentially (200 ms → 5 s cap).
+- **Defense-in-depth on the wire.** The SSE client revalidates every payload
+  with `HudEventSchema.safeParse` before dispatching, so a malformed or
+  spoofed frame cannot crash the store.
+- **i18n deferred.** Per the resolved plan, Phase 5 ships English literals.
+  A later phase introduces `next-intl` and migrates user-visible strings to
+  `t('namespace.key')` keys; the conventions in CLAUDE.md §5 remain the long-
+  term target.
+- **`scripts/synth-event.sh`** is the only new dev tool. It posts synthetic
+  events of every type to a running HUD, reading `HUD_INGEST_TOKEN` from
+  `.env.local` and caching a session id in `$TMPDIR/hud-synth-session` so
+  successive events affect the same session card.
+
+## Status update — 2026-05-23
+
+Phase 5 sealed. All five acceptance criteria validated end-to-end:
+hard-refresh hydration, `< 500 ms` event-to-screen latency, `Last-Event-ID`
+replay, context-ring band transitions at exact 70 and 90 boundaries, and
+responsive layout at iPad portrait and landscape dimensions. `pnpm typecheck`,
+`pnpm lint`, `pnpm -r run test`, and `pnpm --filter @livoclouds/hud build`
+all pass. Phase 6 (mascot) is unblocked.
 
 ## Risks
 

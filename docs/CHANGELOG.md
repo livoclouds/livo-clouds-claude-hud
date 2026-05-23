@@ -7,6 +7,32 @@ uses [Semantic Versioning](https://semver.org) at the major-version level only
 
 ---
 
+## [v1.0.4] — 2026-05-23
+
+### Changed
+
+- Phase 5 sealed on 2026-05-23 — the live view is now the entry view at `/`.
+  See [phase-5](./v1/phases/phase-5-live-view.md). The Server Component
+  hydrates from `bus.snapshot()` and folds events through `reduce()` from
+  `apps/hud/lib/store.ts`; the same reducer runs in the SSE client so the
+  RSC snapshot and live updates produce identical state. `EventSource`
+  reconnects via the browser's automatic `Last-Event-ID` header, with an
+  extra `visibilitychange` re-open for iPad Safari and exponential backoff
+  on persistent errors. Counter animations use `motion`'s `useSpring`
+  (stiffness 200, damping 30) and honor `prefers-reduced-motion`.
+  - **D-5.1** resolved to the default Motion spring (200/30; settles <600 ms).
+  - **D-5.2** resolved to thresholds `{ warn: 70, critical: 90 }` in
+    `apps/hud/lib/thresholds.ts`. Boundary transitions verified end-to-end.
+  - **D-5.3** resolved to "latest `tool.use` for the active session";
+    sub-agent activity is folded into the parent session in v1.
+- Added `apps/hud/scripts/synth-event.sh` — bash helper that posts synthetic
+  events to a running HUD for local QA without Claude Code.
+- Phase 5 status moved from ⚪ Not Started to 🟢 Complete in
+  [`v1/phases/README.md`](./v1/phases/README.md) and
+  [`v1/progress.html`](./v1/progress.html). Phase 6 is now unblocked.
+
+---
+
 ## [v1.0.3] — 2026-05-23
 
 ### Changed

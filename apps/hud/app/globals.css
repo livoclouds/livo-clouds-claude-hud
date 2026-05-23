@@ -4,10 +4,31 @@
   --color-hud-bg: #0a0a0a;
   --color-hud-fg: #f4f4f4;
   --color-hud-accent: #cc785c;
+  --color-hud-warn: #e8a33d;
+  --color-hud-critical: #e0556a;
+  --color-hud-glass: rgba(255, 255, 255, 0.05);
+  --radius-hud-card: 1rem;
+  --blur-hud-card: 24px;
 }
 
 html,
 body {
-  background: var(--color-hud-bg);
+  background:
+    radial-gradient(1200px 800px at 12% -10%, rgba(204, 120, 92, 0.12), transparent 60%),
+    radial-gradient(900px 600px at 92% 110%, rgba(204, 120, 92, 0.08), transparent 60%),
+    var(--color-hud-bg);
+  background-attachment: fixed;
   color: var(--color-hud-fg);
+  min-height: 100dvh;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
