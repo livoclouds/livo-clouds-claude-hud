@@ -34,13 +34,17 @@ versions.
 
 ## How to navigate
 
-| Need | Go to |
-|---|---|
-| **Phases & roadmap** | [`v1/phases/`](./v1/phases) |
-| **Live progress tracker (interactive)** | [`v1/progress.html`](./v1/progress.html) |
-| **System architecture** | [`v1/architecture.md`](./v1/architecture.md) |
-| **Glossary of terms** | [`v1/glossary.md`](./v1/glossary.md) |
-| **Status badges & conventions** | [`v1/conventions.md`](./v1/conventions.md) |
+| Need                                    | Go to                                                                            |
+| --------------------------------------- | -------------------------------------------------------------------------------- |
+| **Persona-routed quickstart**           | [`v1/getting-started.md`](./v1/getting-started.md)                               |
+| **Setup — hook (Claude Code → HUD)**    | [`v1/setup/setup-hook.md`](./v1/setup/setup-hook.md)                             |
+| **Setup — iPad kiosk**                  | [`v1/setup/setup-ipad.md`](./v1/setup/setup-ipad.md)                             |
+| **Setup — Raspberry Pi 5 kiosk**        | [`v1/setup/setup-raspberry-pi-kiosk.md`](./v1/setup/setup-raspberry-pi-kiosk.md) |
+| **Phases & roadmap**                    | [`v1/phases/`](./v1/phases)                                                      |
+| **Live progress tracker (interactive)** | [`v1/progress.html`](./v1/progress.html)                                         |
+| **System architecture**                 | [`v1/architecture.md`](./v1/architecture.md)                                     |
+| **Glossary of terms**                   | [`v1/glossary.md`](./v1/glossary.md)                                             |
+| **Status badges & conventions**         | [`v1/conventions.md`](./v1/conventions.md)                                       |
 
 ---
 

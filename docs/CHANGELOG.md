@@ -7,6 +7,62 @@ uses [Semantic Versioning](https://semver.org) at the major-version level only
 
 ---
 
+## [v1.0.7] — 2026-05-23
+
+### Added
+
+- **Phase 9 sealed on 2026-05-23 — Raspberry Pi 5 kiosk (opt-in) shipped.**
+  See [phase-9](./v1/phases/phase-9-raspberry-pi.md). The HUD now ships with:
+  - `deploy/raspberry-pi/setup.sh` — idempotent bootstrap that installs the
+    apt dependencies, drops the kiosk unit and rotation helper into the
+    calling user's home, enables linger for unattended boot, and writes the
+    env template.
+  - `deploy/raspberry-pi/kiosk.service` — systemd user unit launching
+    Chromium via `--app="$HUD_URL" --kiosk` with `Restart=always`,
+    `xset` blanking guards, and `unclutter -idle 1` for 1-second cursor
+    hide.
+  - `deploy/raspberry-pi/xrandr-rotate.sh` — opt-in portrait rotation
+    helper gated on `ROTATE`; fails open so the kiosk always starts.
+  - `docs/v1/setup/setup-raspberry-pi-kiosk.md` — operator guide covering
+    flashing Pi OS Bookworm, autologin, X11 switch, installer, HUD_URL
+    config, optional rotation + touch matrix, verify, maintenance,
+    troubleshooting, hardware compatibility table, and an optional
+    Tailscale pointer. Reinforces that the Pi never receives
+    `HUD_INGEST_TOKEN`.
+  - D-9.1 (Chromium kiosk via `--app=`), D-9.2 (LAN-first with Tailscale
+    documented), D-9.3 (`xrandr` gated on `ROTATE`) resolved at their
+    default proposals.
+
+- **Public-release documentation pass.** The repo is now prepared for
+  public distribution under [MIT License](../LICENSE):
+  - `README.md` rewritten from the pre-Phase-0 framing into a complete
+    public-facing landing page: current status, prerequisites, quickstart,
+    deployment targets per persona, project structure, dev commands, an
+    accurate tech-stack table that matches actual installed dependencies,
+    security highlights, and a documentation index.
+  - `docs/v1/getting-started.md` — new persona-routed quickstart that
+    routes operators to the right setup guide (dev machine, iPad, Pi,
+    contributor).
+  - `docs/v1/README.md` status snapshot flipped to all 🟢 Complete with a
+    pointer to `getting-started.md`. Directory layout updated to include
+    `setup/`.
+  - `docs/README.md` navigation table extended with persona-routed
+    quickstart and the three setup guides.
+  - `LICENSE` (MIT, © LivoClouds) added at the repo root.
+  - `CONTRIBUTING.md` added: dev setup, conventions, commit format, PR
+    workflow, pointer to `CLAUDE.md` constraints.
+  - `SECURITY.md` added: supported versions, vulnerability reporting
+    process, threat model, operational guarantees, hardening
+    recommendations.
+
+### Changed
+
+- `docs/v1/README.md` — phase table flipped to all 🟢 Complete; reading
+  order section updated to differentiate "run the HUD" from "understand
+  the system" paths.
+
+---
+
 ## [v1.0.6] — 2026-05-23
 
 ### Changed
