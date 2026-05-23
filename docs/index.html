@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Claude Code HUD — Docs</title>
+    <meta
+      name="description"
+      content="Documentation index for the Claude Code HUD project — interactive trackers and Markdown references."
+    />
+    <style>
+      :root {
+        --bg: #f7f6f2;
+        --bg-elev: #ffffff;
+        --bg-soft: #efece4;
+        --fg: #1a1a1a;
+        --fg-soft: #555048;
+        --fg-mute: #8a8377;
+        --border: #e3ddcf;
+        --accent: #cc785c;
+        --accent-soft: #f4e2d8;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1a1815;
+          --bg-elev: #221f1a;
+          --bg-soft: #2a2620;
+          --fg: #f4f1ea;
+          --fg-soft: #c6c0b3;
+          --fg-mute: #8a8377;
+          --border: #3a352d;
+          --accent: #e08a6c;
+          --accent-soft: #3a2a23;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+        font-size: 17px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 32px 20px 64px;
+      }
+      header { margin-bottom: 32px; }
+      h1 {
+        font-size: 28px;
+        font-weight: 600;
+        margin: 0 0 8px;
+        letter-spacing: -0.01em;
+      }
+      .sub {
+        color: var(--fg-mute);
+        font-size: 15px;
+        margin: 0;
+      }
+      h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--fg-mute);
+        font-weight: 600;
+        margin: 32px 0 12px;
+      }
+      .card-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .card {
+        display: block;
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 18px 20px;
+        text-decoration: none;
+        color: inherit;
+        min-height: 44px;
+        transition: border-color 120ms ease, transform 120ms ease;
+      }
+      .card:hover, .card:focus-visible {
+        border-color: var(--accent);
+        outline: none;
+      }
+      .card:active { transform: scale(0.99); }
+      .card .title {
+        font-size: 17px;
+        font-weight: 600;
+        margin: 0 0 4px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .card .desc {
+        font-size: 14px;
+        color: var(--fg-soft);
+        margin: 0;
+      }
+      .badge {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      footer {
+        margin-top: 48px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+        font-size: 13px;
+        color: var(--fg-mute);
+      }
+      footer a { color: var(--accent); text-decoration: none; }
+      footer a:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <header>
+        <h1>Claude Code HUD</h1>
+        <p class="sub">Documentation &amp; interactive trackers</p>
+      </header>
+
+      <h2>Interactive</h2>
+      <ul class="card-list">
+        <li>
+          <a class="card" href="v1/progress.html">
+            <p class="title">Progress Tracker <span class="badge">v1</span></p>
+            <p class="desc">Live roadmap with phase status, blockers, and decisions. Tap to filter.</p>
+          </a>
+        </li>
+      </ul>
+
+      <h2>Reference (Markdown on GitHub)</h2>
+      <ul class="card-list">
+        <li>
+          <a class="card" href="https://github.com/livoclouds/livo-clouds-claude-hud/blob/main/docs/README.md">
+            <p class="title">Docs index</p>
+            <p class="desc">Top-level documentation map for the project.</p>
+          </a>
+        </li>
+        <li>
+          <a class="card" href="https://github.com/livoclouds/livo-clouds-claude-hud/blob/main/docs/v1/README.md">
+            <p class="title">v1 overview</p>
+            <p class="desc">Phase plan, scope, and entry points for the v1 release.</p>
+          </a>
+        </li>
+        <li>
+          <a class="card" href="https://github.com/livoclouds/livo-clouds-claude-hud/blob/main/docs/v1/architecture.md">
+            <p class="title">Architecture</p>
+            <p class="desc">System diagram, ingest contract, transport choices.</p>
+          </a>
+        </li>
+        <li>
+          <a class="card" href="https://github.com/livoclouds/livo-clouds-claude-hud/blob/main/docs/v1/conventions.md">
+            <p class="title">Conventions</p>
+            <p class="desc">Coding, naming, and i18n conventions for contributors.</p>
+          </a>
+        </li>
+        <li>
+          <a class="card" href="https://github.com/livoclouds/livo-clouds-claude-hud/blob/main/docs/v1/glossary.md">
+            <p class="title">Glossary</p>
+            <p class="desc">Terms used across the codebase and docs.</p>
+          </a>
+        </li>
+        <li>
+          <a class="card" href="https://github.com/livoclouds/livo-clouds-claude-hud/blob/main/CLAUDE.md">
+            <p class="title">CLAUDE.md</p>
+            <p class="desc">Architectural constitution. Read before writing code.</p>
+          </a>
+        </li>
+      </ul>
+
+      <footer>
+        Source: <a href="https://github.com/livoclouds/livo-clouds-claude-hud">livoclouds/livo-clouds-claude-hud</a>
+      </footer>
+    </main>
+  </body>
+</html>
