@@ -7,6 +7,36 @@ uses [Semantic Versioning](https://semver.org) at the major-version level only
 
 ---
 
+## [v1.0.5] — 2026-05-23
+
+### Changed
+
+- Phase 7 sealed on 2026-05-23 — polish + secondary views landed. See
+  [phase-7](./v1/phases/phase-7-polish.md). The HUD now ships with:
+  - `next-themes` driving a `data-theme` attribute, light + dark token sets
+    in `apps/hud/app/globals.css`, a `<ThemeToggle>` mounted in the bottom
+    `<NavBar>`, and `disableTransitionOnChange` to avoid hydration flashes.
+  - `apps/hud/lib/aggregations.ts` — server-only daily reducer with an
+    immutable past-day cache; consumed by `/sessions` (last 14 days,
+    sortable by cost or recency) and `/cost` (14-day USD bar + tokens-out
+    line chart). The Recharts client is dynamic-imported with `ssr: false`.
+  - `<Gestures>` wrapper around the App Router using `@use-gesture/react`
+    to swipe through `/cost · / · /sessions · /mascot`. `<LongPressable>`
+    wraps token / cost / context cards to open a bottom `<MetricSheet>`
+    that dismisses on swipe-down, backdrop tap, dismiss button, or Escape.
+  - Reduced-motion gates on the swipe peek, sheet spring, and chart bar /
+    line animations layer on top of the existing
+    `AnimatedNumber` / `ContextRing` / `Mascot` paths.
+  - **D-7.1** resolved to the default (last 14 days; no "show all" in v1).
+  - **D-7.2** resolved to day buckets only (hour drill-in deferred).
+  - **D-7.3** resolved to the gesture map above; tap-on-mascot deferred.
+- Phase 7 status moved from ⚪ Not Started to 🟢 Complete in
+  [`v1/phases/README.md`](./v1/phases/README.md) and
+  [`v1/progress.html`](./v1/progress.html). Phase 8 (PWA & iPad kiosk) is
+  now unblocked.
+
+---
+
 ## [v1.0.4] — 2026-05-23
 
 ### Changed

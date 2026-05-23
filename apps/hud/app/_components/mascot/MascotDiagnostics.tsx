@@ -12,22 +12,22 @@ export function MascotDiagnostics() {
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-8 px-4 py-8 md:px-8 md:py-12">
       <header>
-        <p className="text-xs uppercase tracking-wider text-white/40">Diagnostics</p>
-        <h1 className="mt-1 font-mono text-lg text-white/90">Mascot states</h1>
-        <p className="mt-2 max-w-prose text-sm text-white/60">
+        <p className="hud-fg-muted text-xs uppercase tracking-wider">Mascot</p>
+        <h1 className="hud-fg mt-1 font-mono text-lg">Live + diagnostics</h1>
+        <p className="hud-fg-soft mt-2 max-w-prose text-sm">
           Pin the mascot to any canonical state, or fall back to the live
           event-derived state. Use this page to verify each animation in
           isolation.
         </p>
       </header>
 
-      <section className="flex justify-center rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+      <section className="hud-card flex justify-center p-6">
         <Mascot overrideState={override} />
       </section>
 
       <section aria-label="Mascot state controls" className="flex flex-col gap-3">
-        <p className="text-xs uppercase tracking-wider text-white/40">
-          Current: <span className="text-white/80">{override ?? 'live (derived)'}</span>
+        <p className="hud-fg-muted text-xs uppercase tracking-wider">
+          Current: <span className="hud-fg">{override ?? 'live (derived)'}</span>
         </p>
         <div className="flex flex-wrap gap-2">
           {MASCOT_STATES.map((s) => (
@@ -38,8 +38,8 @@ export function MascotDiagnostics() {
               aria-pressed={override === s}
               className={`min-h-[44px] rounded-full px-4 py-2 font-mono text-sm transition ${
                 override === s
-                  ? 'bg-[var(--color-hud-accent)] text-black'
-                  : 'bg-white/10 text-white/80 hover:bg-white/15'
+                  ? 'bg-[var(--color-hud-accent)] text-[color:var(--color-hud-bg)]'
+                  : 'border border-[var(--color-hud-card-border)] bg-[var(--color-hud-card-bg)] text-[color:var(--color-hud-fg-soft)] hover:text-[color:var(--color-hud-fg)]'
               }`}
             >
               {s}
@@ -51,8 +51,8 @@ export function MascotDiagnostics() {
             aria-pressed={override === null}
             className={`min-h-[44px] rounded-full px-4 py-2 font-mono text-sm transition ${
               override === null
-                ? 'bg-[var(--color-hud-accent)] text-black'
-                : 'bg-white/10 text-white/80 hover:bg-white/15'
+                ? 'bg-[var(--color-hud-accent)] text-[color:var(--color-hud-bg)]'
+                : 'border border-[var(--color-hud-card-border)] bg-[var(--color-hud-card-bg)] text-[color:var(--color-hud-fg-soft)] hover:text-[color:var(--color-hud-fg)]'
             }`}
           >
             live (derived)

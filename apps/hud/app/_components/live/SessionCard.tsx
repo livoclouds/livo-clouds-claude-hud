@@ -17,13 +17,13 @@ export function SessionCard() {
 
   if (!session) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+      <div className="hud-card p-6">
         <div className="flex flex-col items-center justify-center py-10 text-center">
-          <span aria-hidden className="text-5xl text-[var(--color-hud-accent)]">
+          <span aria-hidden className="hud-accent text-5xl">
             ✦
           </span>
-          <p className="mt-3 text-sm text-white/60">Waiting for a Claude Code session…</p>
-          <p className="mt-1 text-xs text-white/30">
+          <p className="hud-fg-soft mt-3 text-sm">Waiting for a Claude Code session…</p>
+          <p className="hud-fg-muted mt-1 text-xs">
             Install the HUD hook with <code className="font-mono">pnpm hud:install-hook</code>
           </p>
         </div>
@@ -36,19 +36,27 @@ export function SessionCard() {
   const ended = session.endedAt !== null;
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+    <div className="hud-card p-6">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wider text-white/40">Active session</p>
-          <p className="mt-1 font-mono text-sm text-white/80" title={session.id}>
+          <p className="hud-fg-muted text-xs uppercase tracking-wider">Active session</p>
+          <p className="hud-fg-soft mt-1 font-mono text-sm" title={session.id}>
             {idLabel}
           </p>
         </div>
         <span
-          className={
+          className="rounded-full px-2 py-1 text-[10px] uppercase tracking-wider"
+          style={
             ended
-              ? 'rounded-full bg-white/10 px-2 py-1 text-[10px] uppercase tracking-wider text-white/50'
-              : 'rounded-full bg-emerald-400/15 px-2 py-1 text-[10px] uppercase tracking-wider text-emerald-300'
+              ? {
+                  background: 'var(--color-hud-card-bg)',
+                  color: 'var(--color-hud-fg-muted)',
+                }
+              : {
+                  background:
+                    'color-mix(in srgb, var(--color-hud-success) 18%, transparent)',
+                  color: 'var(--color-hud-success)',
+                }
           }
         >
           {ended ? 'Ended' : 'Live'}
@@ -57,29 +65,26 @@ export function SessionCard() {
 
       <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
         <div>
-          <p className="text-white/40">Model</p>
-          <p
-            className="mt-1 font-mono text-white/80"
-            title={session.model ?? undefined}
-          >
+          <p className="hud-fg-muted">Model</p>
+          <p className="hud-fg-soft mt-1 font-mono" title={session.model ?? undefined}>
             {session.model ? truncate(session.model, 22) : '—'}
           </p>
         </div>
         <div>
-          <p className="text-white/40">Working dir</p>
-          <p className="mt-1 font-mono text-white/80" title={session.cwd ?? undefined}>
+          <p className="hud-fg-muted">Working dir</p>
+          <p className="hud-fg-soft mt-1 font-mono" title={session.cwd ?? undefined}>
             {cwdLabel ?? '—'}
           </p>
         </div>
         <div>
-          <p className="text-white/40">Started</p>
-          <p className="mt-1 font-mono text-white/80">
+          <p className="hud-fg-muted">Started</p>
+          <p className="hud-fg-soft mt-1 font-mono">
             {hydrated ? relativeTime(session.startedAt, now) : '…'}
           </p>
         </div>
         <div>
-          <p className="text-white/40">Status</p>
-          <p className="mt-1 font-mono text-white/80">{ended ? 'Frozen' : 'Streaming'}</p>
+          <p className="hud-fg-muted">Status</p>
+          <p className="hud-fg-soft mt-1 font-mono">{ended ? 'Frozen' : 'Streaming'}</p>
         </div>
       </div>
     </div>
