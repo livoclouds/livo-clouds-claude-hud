@@ -172,30 +172,72 @@
       }
       .overall .pct {
         font-family: var(--font-mono);
-        font-size: 28px;
+        font-size: 38px;
+        font-weight: 600;
         letter-spacing: -0.02em;
-        color: var(--fg);
+        background: linear-gradient(
+          135deg,
+          var(--accent) 0%,
+          var(--st-ok) 100%
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        line-height: 1.1;
       }
       .overall .label {
         color: var(--fg-soft);
-        font-size: 13px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
       }
       .overall .bar {
-        margin-top: 14px;
-        height: 8px;
+        margin-top: 16px;
+        height: 12px;
         background: var(--bg-soft);
         border-radius: 999px;
         overflow: hidden;
+        border: 1px solid var(--border);
       }
       .overall .bar > div {
         height: 100%;
         background: linear-gradient(
           90deg,
           var(--accent) 0%,
+          var(--st-ip) 50%,
           var(--st-ok) 100%
         );
         width: 0%;
-        transition: width 0.4s ease;
+        border-radius: 999px;
+        box-shadow: 0 0 14px rgba(78, 163, 106, 0.35);
+        position: relative;
+        overflow: hidden;
+        transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .overall .bar > div::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          90deg,
+          transparent 0%,
+          rgba(255, 255, 255, 0.28) 50%,
+          transparent 100%
+        );
+        animation: shimmer 2.6s linear infinite;
+      }
+      @keyframes shimmer {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(100%);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .overall .bar > div::after {
+          animation: none;
+        }
       }
 
       .stats {
@@ -269,13 +311,46 @@
         border: 1px solid var(--border);
         border-radius: var(--radius);
         overflow: hidden;
-        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        position: relative;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease,
+          transform 0.2s ease;
       }
       .phase:hover {
         border-color: var(--border-strong);
       }
       .phase.expanded {
         box-shadow: var(--shadow-md);
+      }
+
+      /* Fancy completed phase */
+      .phase.is-ok {
+        border-color: rgba(78, 163, 106, 0.45);
+        background: linear-gradient(
+          90deg,
+          rgba(78, 163, 106, 0.08) 0%,
+          var(--bg-elev) 30%
+        );
+        box-shadow: 0 1px 0 rgba(78, 163, 106, 0.08),
+          0 8px 24px -16px rgba(78, 163, 106, 0.35);
+      }
+      .phase.is-ok::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: linear-gradient(180deg, var(--st-ok) 0%, #6cc488 100%);
+      }
+      .phase.is-ok .head .id {
+        color: var(--st-ok);
+        font-weight: 600;
+      }
+      .phase.is-ok .head .title h3::after {
+        content: "  ✓";
+        color: var(--st-ok);
+        font-weight: 700;
+        letter-spacing: 0;
       }
 
       .phase .head {
@@ -339,8 +414,15 @@
       .badge.st-bl .dot {
         background: var(--st-bl);
       }
+      .badge.st-ok {
+        background: rgba(78, 163, 106, 0.14);
+        border-color: rgba(78, 163, 106, 0.45);
+        color: var(--st-ok);
+        font-weight: 600;
+      }
       .badge.st-ok .dot {
         background: var(--st-ok);
+        box-shadow: 0 0 0 3px rgba(78, 163, 106, 0.2);
       }
       .badge.st-cx .dot {
         background: var(--st-cx);
@@ -1196,7 +1278,9 @@
             const status = effectiveStatus(p);
             const overridden = isOverridden(p);
             return `
-            <div class="phase ${isExp ? "expanded" : ""}" data-id="${p.id}">
+            <div class="phase ${isExp ? "expanded" : ""} ${
+              status === "ok" ? "is-ok" : ""
+            }" data-id="${p.id}">
               <div class="head" data-toggle="${p.id}">
                 <div class="id">${p.id}</div>
                 <div class="title">
