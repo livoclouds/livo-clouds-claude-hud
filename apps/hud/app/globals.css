@@ -1,10 +1,10 @@
 @import 'tailwindcss';
 
 /* ---------------------------------------------------------------------------
-   HUD design tokens — glassmorphism (Phase 0 D-0.2).
-   Tokens are scoped per theme via the `data-theme` attribute set by
-   `next-themes`. The unscoped block below acts as the SSR default so the
-   first paint matches the dark theme (avoids a white flash).
+   HUD design tokens — glassmorphism. Scoped per theme via the `data-theme`
+   attribute on <html>, set by the inline anti-FOUC script in `layout.tsx`.
+   The unscoped block below is the SSR default so the first paint matches
+   the dark theme (avoids a white flash).
    --------------------------------------------------------------------------- */
 
 @theme {

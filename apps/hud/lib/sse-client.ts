@@ -55,18 +55,27 @@ function attach(url: string, store: HudStoreApi): Connection {
   };
 }
 
+export type SseStatus = 'connecting' | 'open' | 'reconnecting';
+
 export type UseEventStreamOptions = {
   url?: string;
+  onStatusChange?: (status: SseStatus) => void;
 };
 
 export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions = {}): void {
   const url = opts.url ?? '/api/stream';
+  const { onStatusChange } = opts;
 
   useEffect(() => {
     let connection: Connection | null = null;
     let backoffAttempt = 0;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let cancelled = false;
+
+    const notify = (status: SseStatus) => {
+      if (cancelled) return;
+      onStatusChange?.(status);
+    };
 
     const clearTimer = () => {
       if (reconnectTimer !== null) {
@@ -77,6 +86,7 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
 
     const scheduleReconnect = () => {
       if (cancelled) return;
+      notify('reconnecting');
       const delay = Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** backoffAttempt);
       backoffAttempt += 1;
       clearTimer();
@@ -97,6 +107,7 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
 
       conn.source.addEventListener('open', () => {
         backoffAttempt = 0;
+        notify('open');
       });
 
       conn.source.addEventListener('error', () => {
@@ -121,10 +132,12 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
         connection = null;
         clearTimer();
         backoffAttempt = 0;
+        notify('connecting');
         open();
       }
     };
 
+    notify('connecting');
     open();
     document.addEventListener('visibilitychange', onVisibility);
 
@@ -137,5 +150,5 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
         connection = null;
       }
     };
-  }, [store, url]);
+  }, [store, url, onStatusChange]);
 }
