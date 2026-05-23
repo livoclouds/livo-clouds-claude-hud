@@ -7,6 +7,23 @@ uses [Semantic Versioning](https://semver.org) at the major-version level only
 
 ---
 
+## [v1.0.1] — 2026-05-22
+
+### Changed
+
+- Phase 0 sealed on 2026-05-22 — design decisions D-0.1 through D-0.4 resolved
+  (see [phase-0](./v1/phases/phase-0-design-decisions.md)):
+  - **D-0.1 Mascot art**: Option A — stylized Claude `✦` glyph, animated with
+    Motion + CSS.
+  - **D-0.2 Visual tone**: Glassmorphism.
+  - **D-0.3 Package manager**: pnpm.
+  - **D-0.4 Local port**: 3000.
+- Phase 0 status moved from 🟠 Blocked to 🟢 Complete in
+  [`v1/phases/README.md`](./v1/phases/README.md) and
+  [`v1/progress.html`](./v1/progress.html). Phase 1 is now unblocked.
+
+---
+
 ## [v1.0.0] — 2026-05-22
 
 ### Added

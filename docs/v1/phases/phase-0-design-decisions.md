@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Phase ID | `phase-0` |
-| Status | 🟠 Blocked |
+| Status | 🟢 Complete |
 | Depends on | — |
 | Blocks | `phase-1`, `phase-6`, `phase-7` |
 | Target outcome | All four design questions are answered and documented, unblocking implementation |
@@ -111,11 +111,11 @@ README (`PORT=3010 pnpm dev`).
 
 ## Decisions Resolved
 
-> _Filled in when each decision is made. Until then this section is empty._
+> Phase 0 sealed on **2026-05-22**. See [`docs/CHANGELOG.md`](../../CHANGELOG.md).
 
 | Decision | Resolution | Date | Rationale |
 |---|---|---|---|
-| D-0.1 Mascot art | _pending_ | — | — |
-| D-0.2 Visual tone | _pending_ | — | — |
-| D-0.3 Package manager | _pending_ | — | — |
-| D-0.4 Local port | _pending_ | — | — |
+| D-0.1 Mascot art | **Option A** — stylized Claude `✦` glyph, animated with Motion + CSS | 2026-05-22 | Fastest path to a working HUD; inherits Anthropic identity; the state machine in Phase 6 can later swap to Option B (custom mascot) without rewriting `lib/mascot/state.ts`. |
+| D-0.2 Visual tone | **Glassmorphism** | 2026-05-22 | The iPad's high-DPI display is the primary surface and benefits the most from depth, blur, and translucency. |
+| D-0.3 Package manager | **pnpm** | 2026-05-22 | Matches sibling repos `livo-clouds-web-app` and `livo-clouds-api-app`; workspace support, deterministic lockfile, fast installs. |
+| D-0.4 Local port | **3000** | 2026-05-22 | Next.js default; per-developer conflicts with `livo-clouds-web-app` are resolved via `PORT=3010 pnpm dev`, documented in Phase 1's README. |

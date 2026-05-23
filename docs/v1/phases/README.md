@@ -12,7 +12,7 @@ or the table below.
 
 | ID | Title | Status | Depends on | Blocks | Headline outcome |
 |---|---|---|---|---|---|
-| [phase-0](./phase-0-design-decisions.md) | Design Decisions | 🟠 Blocked | — | 1, 6, 7 | Mascot art direction and visual tone chosen |
+| [phase-0](./phase-0-design-decisions.md) | Design Decisions | 🟢 Complete | — | 1, 6, 7 | Mascot art direction and visual tone chosen |
 | [phase-1](./phase-1-scaffold.md) | Scaffold | ⚪ Not Started | 0 | 2 | Monorepo runs `pnpm dev` with empty Next.js shell |
 | [phase-2](./phase-2-event-contract.md) | Event Contract | ⚪ Not Started | 1 | 3, 4 | `HudEventSchema` published in `packages/contracts` |
 | [phase-3](./phase-3-backend.md) | Backend (Ingest, Bus, SSE) | ⚪ Not Started | 2 | 4, 5 | `POST /api/events` and `GET /api/stream` wired end-to-end in-process |
