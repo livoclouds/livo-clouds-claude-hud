@@ -1,5 +1,6 @@
 'use client';
 
+import { Mascot } from '../mascot/Mascot';
 import { SessionCard } from './SessionCard';
 import { TokenStat } from './TokenStat';
 import { CostStat } from './CostStat';
@@ -21,6 +22,10 @@ export function LiveView() {
       </header>
 
       <ErrorPill />
+
+      <section className="flex justify-center py-2">
+        <Mascot />
+      </section>
 
       <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <div className="md:col-span-2">

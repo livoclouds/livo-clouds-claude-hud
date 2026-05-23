@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Phase ID | `phase-6` |
-| Status | ⚪ Not Started |
+| Status | 🟢 Complete |
 | Depends on | `phase-0`, `phase-5` |
 | Blocks | `phase-7` |
 | Target outcome | An animated mascot sits at the visual center of the HUD and reacts to every subscribed event in real time |
@@ -12,107 +12,115 @@
 
 ## Overview
 
-Bring the mascot to life. The mascot is the emotional center of the HUD — it is
-what makes the screen feel **alive** rather than analytical. Its visible state
-is a pure function of the event log; never an imperative animation call.
+Bring the mascot to life. The mascot is the emotional center of the HUD — it
+is what makes the screen feel **alive** rather than analytical. Its visible
+state is a pure function of the event log; never an imperative animation call.
+
+Per Phase 0 decision D-0.1 the mascot ships as a **stylized Claude `✦`
+glyph** animated with **`motion/react` + Tailwind/CSS**. No Lottie runtime is
+introduced, so first paint stays cheap and we can swap the artwork later
+without rewriting the state machine.
 
 ## Goals
 
-- Integrate Lottie React.
 - Implement a **state machine** that derives the mascot's current state from
-  the latest events.
+  the latest validated event envelope (latest-event-wins).
+- Animate transitions with Motion (no hard cuts) using only
+  compositor-friendly properties.
 - Author idle micro-animations so the mascot never freezes.
-- Implement transitions between states (no hard cuts).
+- Fall back to `idle` after 30 s of silence.
 - Honor `prefers-reduced-motion`.
+- Provide a `/mascot` diagnostics route so every canonical state is reachable
+  for QA without a real Claude Code session.
 
 ## In Scope
 
-- `apps/hud/app/_components/mascot/Mascot.tsx` — renders the current Lottie.
-- `apps/hud/lib/mascot/state.ts` — derivation function `eventsToMascotState(events)`.
-- `apps/hud/lib/mascot/timeouts.ts` — fallback-to-idle logic after 30 s silence.
-- `apps/hud/app/_components/mascot/assets/` — Lottie JSON files for each state.
-- A "diagnostics" hidden route `/mascot` that lets us cycle through all states
-  manually — used to QA each animation in isolation.
+- `apps/hud/app/_components/mascot/Mascot.tsx` — animated SVG glyph driven by
+  Motion variants per state.
+- `apps/hud/app/_components/mascot/MascotGlyph.tsx` — inline SVG mark.
+- `apps/hud/app/_components/mascot/MascotDiagnostics.tsx` — QA panel.
+- `apps/hud/lib/mascot/state.ts` — pure derivation function
+  `deriveMascotState({ recentEvents, nowMs })` + `classifyTool`.
+- `apps/hud/lib/mascot/timeouts.ts` — timing constants and ring-buffer cap.
+- `apps/hud/lib/mascot/state.test.ts` — Vitest unit tests.
+- `apps/hud/app/mascot/page.tsx` — hidden `/mascot` diagnostics route.
+- Store extension: `HudState` keeps a bounded `recentEvents` ring (cap 16) so
+  the mascot can derive across RSC snapshot and live SSE updates.
 
 ## Out of Scope
 
-- Producing the artwork. Phase 0 chose the art direction; this phase **consumes**
-  the assets. If D-0.1 picked path A (stylized `✦`), we generate the Lottie
-  files in this phase from SVG sources. If B or C, the assets arrive from the
-  illustrator / generator and we integrate them.
+- Lottie integration. Phase 0 sealed D-0.1 as the stylized `✦` glyph
+  approach; Lottie remains a future-version upgrade path.
+- Producing custom mascot artwork (Phase 0 Option B).
 - Sound effects — out of scope for v1.
 
 ## Open Decisions
 
 ### D-6.1 — Asset format
 
-If D-0.1 = A → SVG-source Lottie generated from a small script; ships in repo.
-If D-0.1 = B → vendor-delivered Lottie JSON; ships in repo.
-If D-0.1 = C → AI-generated frames composited into Lottie; ships in repo.
+Resolved per D-0.1 = Option A: **inline SVG + Motion + Tailwind**, no Lottie.
+The Mascot component reads color, glow, and motion from a per-state variants
+map and tints the shared `<MascotGlyph />` mark via `currentColor`.
 
 ### D-6.2 — State priority on conflicting signals
 
-When two events could imply different states within the same tick (e.g.
-`tool.use` followed immediately by `turn.stop`), the **most recent event
-wins**. Document this explicitly in `state.ts`.
+Resolved: **latest event wins**. Encoded in `state.ts` as a single switch over
+the most recent envelope. The only look-back is for `compact.end` once its
+small post-compact window expires (so the mascot surfaces what was happening
+before compaction instead of getting stuck).
 
 ### D-6.3 — Idle timeout
 
-**Default proposal**: 30 s without any event → return to `idle`. Long-running
-tool invocations should still emit periodic `tool.use` events; if they don't,
-the mascot will fall back to idle even mid-execution. Acceptable trade-off.
+Resolved: **30 s** of silence → `idle`. Constants colocated in
+`lib/mascot/timeouts.ts`.
 
 ## Deliverables
 
 ```
 apps/hud/
-├── app/_components/mascot/
-│   ├── Mascot.tsx
-│   └── assets/
-│       ├── idle.json
-│       ├── listening.json
-│       ├── thinking.json
-│       ├── editing.json
-│       ├── running.json
-│       ├── succeeded.json
-│       ├── errored.json
-│       └── compacting.json
+├── app/
+│   ├── _components/mascot/
+│   │   ├── Mascot.tsx
+│   │   ├── MascotGlyph.tsx
+│   │   └── MascotDiagnostics.tsx
+│   └── mascot/page.tsx
 ├── lib/mascot/
 │   ├── state.ts
+│   ├── state.test.ts
 │   └── timeouts.ts
-└── app/mascot/
-    └── page.tsx          # diagnostics route
+└── vitest.config.ts
 ```
 
 ## Acceptance Criteria
 
 - Every state listed in [`CLAUDE.md §7`](../../../CLAUDE.md) is reachable from
-  the diagnostics route.
+  the `/mascot` diagnostics route.
 - A live session triggers state transitions matching the event log.
-- 60 fps sustained on iPad 2021 hardware (verified via Safari Web Inspector).
-- `prefers-reduced-motion: reduce` swaps Lottie playback for a static frame
-  per state.
+- 60 fps target: animations only mutate `transform`, `opacity`, and `filter`.
+- `prefers-reduced-motion: reduce` swaps motion variants for a static frame.
 - After 30 s of silence the mascot is back in `idle`.
 
 ## Tasks
 
-1. Build `Mascot.tsx` that loads the correct Lottie based on a prop.
-2. Build `state.ts` as a pure function over the event array.
-3. Wire the mascot to the Zustand store via a selector.
-4. Implement the diagnostics route.
-5. Produce each Lottie asset per D-6.1.
-6. Tune transitions with Motion (cross-fade or morph between Lotties).
-7. Performance pass on iPad 2021.
-8. PR titled `feat(mascot): state machine and Lottie integration (Phase 6)`.
+1. Pure derivation function + Vitest unit tests.
+2. Extend the Zustand store with a bounded `recentEvents` ring.
+3. Build `Mascot.tsx` driving `<MascotGlyph />` via Motion variants per state;
+   handle `useReducedMotion`.
+4. Integrate the mascot into the Live View without obscuring metrics.
+5. Implement the `/mascot` diagnostics route.
+6. Update docs and tracker.
+7. PR titled `feat(mascot): state machine and Motion animations (Phase 6)`.
 
 ## Risks
 
-- **Lottie file size** balloons on iPad — large rigs hurt first paint.
-  Mitigation: budget each Lottie to under 60 KB gzipped; vector-only assets.
-- **Cross-fade flicker** if two Lotties render simultaneously during transition.
-  Mitigation: a small Motion `AnimatePresence` wrapper with `mode="wait"`.
-- **Animation drift** with React 19 transitions. Mitigation: render the mascot
-  outside the page-transition boundary.
+- **Animation drift** with React 19 transitions. Mitigation: the mascot lives
+  in its own client island; selectors return reference-stable arrays and the
+  per-second tick is gated on the override.
+- **Layout thrash** if a state animates layout properties by accident.
+  Mitigation: only `transform`, `opacity`, and `filter` appear in the
+  variants map.
+- **Stale derivation on long silences**. Mitigation: a 1 Hz tick re-derives so
+  the 30 s idle fallback fires without relying on a new event.
 
 ## Related
 
