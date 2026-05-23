@@ -16,7 +16,7 @@ or the table below.
 | [phase-1](./phase-1-scaffold.md) | Scaffold | 🟢 Complete | 0 | 2 | Monorepo runs `pnpm dev` with empty Next.js shell |
 | [phase-2](./phase-2-event-contract.md) | Event Contract | 🟢 Complete | 1 | 3, 4 | `HudEventSchema` published in `packages/contracts` |
 | [phase-3](./phase-3-backend.md) | Backend (Ingest, Bus, SSE) | 🟢 Complete | 2 | 4, 5 | `POST /api/events` and `GET /api/stream` wired end-to-end in-process |
-| [phase-4](./phase-4-hook-script.md) | Hook Script & Installer | ⚪ Not Started | 2, 3 | 5 | Real Claude Code session emits events to HUD |
+| [phase-4](./phase-4-hook-script.md) | Hook Script & Installer | 🟢 Complete | 2, 3 | 5 | Real Claude Code session emits events to HUD |
 | [phase-5](./phase-5-live-view.md) | Live View | ⚪ Not Started | 3, 4 | 6 | First UI: metrics update live without page refresh |
 | [phase-6](./phase-6-mascot.md) | Mascot | ⚪ Not Started | 0, 5 | 7 | Animated mascot reacts to events in real time |
 | [phase-7](./phase-7-polish.md) | Polish & Secondary Views | ⚪ Not Started | 5, 6 | 8 | Themes, gestures, `/sessions`, `/cost` views |

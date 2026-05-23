@@ -1,11 +1,11 @@
 # Phase 4 — Hook Script & Installer
 
-| Field | Value |
-|---|---|
-| Phase ID | `phase-4` |
-| Status | ⚪ Not Started |
-| Depends on | `phase-2`, `phase-3` |
-| Blocks | `phase-5` |
+| Field          | Value                                                                               |
+| -------------- | ----------------------------------------------------------------------------------- |
+| Phase ID       | `phase-4`                                                                           |
+| Status         | 🟢 Complete                                                                         |
+| Depends on     | `phase-2`, `phase-3`                                                                |
+| Blocks         | `phase-5`                                                                           |
 | Target outcome | A real Claude Code session emits live events into the HUD without manual `curl`-ing |
 
 ---
@@ -120,4 +120,17 @@ docs/v1/setup/
 
 - [`./phase-3-backend.md`](./phase-3-backend.md) — the endpoint this phase produces for.
 - [`./phase-5-live-view.md`](./phase-5-live-view.md) — first end-to-end visible result.
+- [`../setup/setup-hook.md`](../setup/setup-hook.md) — installation & troubleshooting guide.
 - [`../../CLAUDE.md §2`](../../../CLAUDE.md) — transport contract.
+
+## Change Log
+
+- 2026-05-23 — Phase implemented. Hook event coverage as shipped:
+  `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PostToolUse`, `Stop`,
+  `SubagentStop`, `PreCompact`. `Notification` and `PreToolUse` are accepted
+  and explicitly skipped (logged, exit 0); `compact.end` is not synthesized
+  from `PreCompact` and will be derived client-side in Phase 6 if needed.
+  Installer / uninstaller are TypeScript scripts invoked via `tsx`; the
+  `tsx` devDependency lives at the workspace root because pnpm 10 routes
+  colon-named scripts through the root. Scripts are invoked as
+  `pnpm -w run hud:install-hook` / `pnpm -w run hud:uninstall-hook`.
