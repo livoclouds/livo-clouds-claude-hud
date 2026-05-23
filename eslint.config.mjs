@@ -25,6 +25,14 @@ export default [
     },
   },
   {
+    files: ['apps/hud/public/sw.js'],
+    languageOptions: {
+      globals: {
+        ...globals.serviceworker,
+      },
+    },
+  },
+  {
     rules: {
       '@typescript-eslint/consistent-type-imports': [
         'error',

@@ -20,7 +20,7 @@ or the table below.
 | [phase-5](./phase-5-live-view.md) | Live View | 🟢 Complete | 3, 4 | 6 | First UI: metrics update live without page refresh |
 | [phase-6](./phase-6-mascot.md) | Mascot | 🟢 Complete | 0, 5 | 7 | Animated mascot reacts to events in real time |
 | [phase-7](./phase-7-polish.md) | Polish & Secondary Views | 🟢 Complete | 5, 6 | 8 | Themes, gestures, `/sessions`, `/cost` views |
-| [phase-8](./phase-8-pwa-ipad.md) | PWA & iPad Kiosk | ⚪ Not Started | 7 | — | HUD installs on iPad home screen, runs as kiosk |
+| [phase-8](./phase-8-pwa-ipad.md) | PWA & iPad Kiosk | 🟢 Complete | 7 | — | HUD installs on iPad home screen, runs as kiosk |
 | [phase-9](./phase-9-raspberry-pi.md) | Raspberry Pi 5 Kiosk | ⚪ Not Started | 7 | — | (Opt-in) Pi 5 boots into HUD in Chromium kiosk mode |
 
 ---

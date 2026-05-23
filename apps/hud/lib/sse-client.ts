@@ -6,6 +6,11 @@ import type { HudStoreApi } from './store';
 
 const BACKOFF_BASE_MS = 200;
 const BACKOFF_CAP_MS = 5_000;
+// After this many consecutive failed attempts we escalate the store's
+// connection state from "reconnecting" to "disconnected" — the user has been
+// offline long enough that ConnectionBanner switches to its more prominent
+// "Disconnected" copy.
+const DISCONNECTED_AFTER_ATTEMPTS = 3;
 
 type Connection = {
   source: EventSource;
@@ -55,6 +60,11 @@ function attach(url: string, store: HudStoreApi): Connection {
   };
 }
 
+// Lifecycle signal consumed by HudProvider → SseStatusBadge (small always-on
+// health indicator in the StatusBar). The store-based `connectionState`
+// (used by ConnectionBanner) is dispatched in parallel — they're two views of
+// the same lifecycle: a subtle pill that's always present and a prominent
+// banner that only appears during outages.
 export type SseStatus = 'connecting' | 'open' | 'reconnecting';
 
 export type UseEventStreamOptions = {
@@ -77,6 +87,11 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
       onStatusChange?.(status);
     };
 
+    const setConnectionState = (state: 'connected' | 'reconnecting' | 'disconnected') => {
+      if (cancelled) return;
+      store.getState().actions.setConnectionState(state);
+    };
+
     const clearTimer = () => {
       if (reconnectTimer !== null) {
         clearTimeout(reconnectTimer);
@@ -89,6 +104,9 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
       notify('reconnecting');
       const delay = Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** backoffAttempt);
       backoffAttempt += 1;
+      setConnectionState(
+        backoffAttempt >= DISCONNECTED_AFTER_ATTEMPTS ? 'disconnected' : 'reconnecting',
+      );
       clearTimer();
       reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
@@ -108,6 +126,7 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
       conn.source.addEventListener('open', () => {
         backoffAttempt = 0;
         notify('open');
+        setConnectionState('connected');
       });
 
       conn.source.addEventListener('error', () => {
@@ -123,27 +142,54 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
       });
     };
 
+    const reopenNow = () => {
+      if (cancelled) return;
+      if (connection) {
+        connection.cleanup();
+        connection = null;
+      }
+      clearTimer();
+      backoffAttempt = 0;
+      notify('connecting');
+      open();
+    };
+
     const onVisibility = () => {
       if (cancelled) return;
       if (document.visibilityState !== 'visible') return;
       // iPad Safari may suspend backgrounded EventSources; reopen on return.
       if (!connection || connection.source.readyState === EventSource.CLOSED) {
-        if (connection) connection.cleanup();
-        connection = null;
-        clearTimer();
-        backoffAttempt = 0;
-        notify('connecting');
-        open();
+        reopenNow();
       }
+    };
+
+    const onOnline = () => {
+      // The browser thinks we're back on the network. Cancel any pending
+      // backoff and reconnect immediately so the banner clears as soon as
+      // possible. Always tears down the prior EventSource first so we never
+      // end up with duplicate subscriptions.
+      if (cancelled) return;
+      reopenNow();
+    };
+
+    const onOffline = () => {
+      // No point waiting for SSE to time out — flag the UI right away.
+      if (cancelled) return;
+      setConnectionState('disconnected');
+      notify('reconnecting');
     };
 
     notify('connecting');
     open();
     document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
 
     return () => {
       cancelled = true;
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
       clearTimer();
       if (connection) {
         connection.cleanup();

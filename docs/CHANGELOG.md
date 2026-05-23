@@ -7,6 +7,56 @@ uses [Semantic Versioning](https://semver.org) at the major-version level only
 
 ---
 
+## [v1.0.6] — 2026-05-23
+
+### Changed
+
+- Phase 8 sealed on 2026-05-23 — the HUD is now an installable iPad PWA.
+  See [phase-8](./v1/phases/phase-8-pwa-ipad.md). The HUD now ships with:
+  - `apps/hud/public/manifest.webmanifest` — standalone display, `theme_color`
+    `#0a0a0a`, mascot-derived icon set (192, 512, maskable-512, apple-touch
+    180). Source SVGs and a regeneration shell script under
+    `apps/hud/scripts/assets/` + `apps/hud/scripts/generate-pwa-assets.sh`
+    so the asset pipeline is reproducible.
+  - Six iPad apple-touch-startup-image splash PNGs (iPad 10.2, iPad Pro 11,
+    iPad Pro 12.9 — portrait + landscape) under `apps/hud/public/splash/`,
+    wired up in `apps/hud/app/layout.tsx` with per-resolution
+    `(device-width / device-height / pixel-ratio / orientation)` media
+    queries (iOS does not honor manifest splash).
+  - Hand-rolled, version-bumpable service worker at
+    `apps/hud/public/sw.js` — shell-only cache (`/_next/static/*`,
+    `/icons/*`, `/splash/*`, manifest), navigation network-first with
+    cached `/` fallback, and **never** caches `/api/*`. Registered only
+    in production via the new
+    `apps/hud/app/_components/ServiceWorkerRegistration.tsx`.
+  - `apps/hud/app/_components/ConnectionBanner.tsx` — glassmorphic,
+    safe-area-aware top banner that reads a new `connectionState`
+    (`'connected' | 'reconnecting' | 'disconnected'`) on the HUD store
+    (`apps/hud/lib/store.ts`). Mounted inside `HudProvider` on `/` and
+    `/mascot` (the only routes with a live SSE stream).
+  - Tighter reconnect in `apps/hud/lib/sse-client.ts` — dispatches the
+    new connection state on `open`/`error`, listens for `online` (cancels
+    backoff, reopens immediately) and `offline` (flips banner without
+    waiting for SSE timeout). Single-subscription invariant preserved;
+    existing Phase 3 `Last-Event-ID` replay path untouched.
+  - `docs/v1/setup/setup-ipad.md` — operator guide covering LAN/Tailscale
+    transport, Add to Home Screen, Auto-Lock disable, brightness, Guided
+    Access, and a manual airplane-mode banner verification.
+  - **D-8.1** resolved to the default (shell-only cache; live event data
+    never cached).
+  - **D-8.2** resolved to the default (exponential backoff on error
+    starting at 200 ms; immediate reopen on `online`; banner escalates
+    from "Reconnecting…" to "Disconnected" after 3 failed attempts).
+  - **D-8.3** resolved to the default (mascot-derived `✦` glyph on the
+    dark theme background, maskable variant with safe-zone padding for
+    Android adaptive icons).
+- Phase 8 status moved from ⚪ Not Started to 🟢 Complete in
+  [`v1/phases/README.md`](./v1/phases/README.md) and
+  [`v1/progress.html`](./v1/progress.html). All in-scope v1 phases
+  except the opt-in Phase 9 (Raspberry Pi) are now sealed.
+
+---
+
 ## [v1.0.5] — 2026-05-23
 
 ### Changed
