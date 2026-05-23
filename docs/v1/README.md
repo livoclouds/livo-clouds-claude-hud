@@ -10,26 +10,28 @@ modern browser.
 
 ## Status snapshot
 
-> **Current Phase: 0 — Design Decisions** · Status: **🟠 Blocked**
->
-> Two design decisions must be resolved before Phase 1 can begin. See
-> [phase-0-design-decisions.md](./phases/phase-0-design-decisions.md).
+> **v1 shipped.** All ten phases are 🟢 Complete. The HUD is installable on
+> iPad, deployable as a Raspberry Pi 5 kiosk (opt-in), and ready to consume a
+> live Claude Code session.
 
-| Phase | Title | Status |
-|---|---|---|
-| 0 | Design Decisions | 🟠 Blocked |
-| 1 | Scaffold | ⚪ Not Started |
-| 2 | Event Contract | ⚪ Not Started |
-| 3 | Backend (Ingest, Bus, SSE) | ⚪ Not Started |
-| 4 | Hook Script & Installer | ⚪ Not Started |
-| 5 | Live View | ⚪ Not Started |
-| 6 | Mascot | ⚪ Not Started |
-| 7 | Polish & Secondary Views | ⚪ Not Started |
-| 8 | PWA & iPad Kiosk | ⚪ Not Started |
-| 9 | Raspberry Pi 5 Kiosk | ⚪ Not Started |
+| Phase | Title                           | Status      |
+| ----- | ------------------------------- | ----------- |
+| 0     | Design Decisions                | 🟢 Complete |
+| 1     | Scaffold                        | 🟢 Complete |
+| 2     | Event Contract                  | 🟢 Complete |
+| 3     | Backend (Ingest, Bus, SSE)      | 🟢 Complete |
+| 4     | Hook Script & Installer         | 🟢 Complete |
+| 5     | Live View                       | 🟢 Complete |
+| 6     | Mascot                          | 🟢 Complete |
+| 7     | Polish & Secondary Views        | 🟢 Complete |
+| 8     | PWA & iPad Kiosk                | 🟢 Complete |
+| 9     | Raspberry Pi 5 Kiosk _(opt-in)_ | 🟢 Complete |
 
 For the interactive view with expandable details and persistent progress,
 open [`progress.html`](./progress.html) in any browser.
+
+New here? Start with [`getting-started.md`](./getting-started.md) — it routes
+you to the right setup guide for your use case.
 
 ---
 
@@ -37,13 +39,18 @@ open [`progress.html`](./progress.html) in any browser.
 
 ```
 docs/v1/
-├── README.md           # This file
-├── architecture.md     # System topology and data flow
-├── conventions.md      # Badges, phase lifecycle, doc rules
-├── glossary.md         # Recurring term definitions
-├── progress.html       # Interactive single-file tracker
+├── README.md                          # This file
+├── getting-started.md                 # Persona-routed quickstart
+├── architecture.md                    # System topology and data flow
+├── conventions.md                     # Badges, phase lifecycle, doc rules
+├── glossary.md                        # Recurring term definitions
+├── progress.html                      # Interactive single-file tracker
+├── setup/
+│   ├── setup-hook.md                  # Wire Claude Code → HUD
+│   ├── setup-ipad.md                  # iPad PWA kiosk
+│   └── setup-raspberry-pi-kiosk.md    # Raspberry Pi 5 kiosk (opt-in)
 └── phases/
-    ├── README.md       # Phases index with per-phase one-liners
+    ├── README.md                      # Phases index
     ├── phase-0-design-decisions.md
     ├── phase-1-scaffold.md
     ├── phase-2-event-contract.md
@@ -60,11 +67,21 @@ docs/v1/
 
 ## Reading order
 
-1. [`architecture.md`](./architecture.md) — understand the system at a glance.
-2. [`conventions.md`](./conventions.md) — learn the badge system.
-3. [`phases/README.md`](./phases/README.md) — see the full roadmap.
-4. [`progress.html`](./progress.html) — open in browser; bookmark it.
-5. Individual phase files — read the one you're about to start.
+If you're trying to **run** the HUD: jump straight to
+[`getting-started.md`](./getting-started.md). It routes you to the right setup
+guide for your use case.
+
+If you're trying to **understand** the system:
+
+1. [`../../CLAUDE.md`](../../CLAUDE.md) — architectural constitution (read this
+   first if you plan to contribute).
+2. [`architecture.md`](./architecture.md) — the system at a glance.
+3. [`conventions.md`](./conventions.md) — badge system and phase lifecycle.
+4. [`phases/README.md`](./phases/README.md) — the full roadmap, all 10 phases
+   complete.
+5. [`progress.html`](./progress.html) — open in browser; bookmark it.
+6. Individual phase files — each documents that phase's scope, deliverables,
+   and acceptance criteria.
 
 ---
 
