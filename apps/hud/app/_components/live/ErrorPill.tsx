@@ -17,13 +17,20 @@ export function ErrorPill() {
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.2 }}
           role="status"
-          className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-2 text-sm text-red-200"
+          className="rounded-xl border px-4 py-2 text-sm"
+          style={{
+            borderColor:
+              'color-mix(in srgb, var(--color-hud-critical) 45%, transparent)',
+            background:
+              'color-mix(in srgb, var(--color-hud-critical) 12%, transparent)',
+            color: 'var(--color-hud-critical)',
+          }}
           title={lastError.message}
         >
-          <span className="font-mono text-xs uppercase tracking-wider text-red-300/80">
+          <span className="font-mono text-xs uppercase tracking-wider">
             {lastError.tool ? `${lastError.tool} · error` : 'Error'}
           </span>
-          <p className="mt-1">{truncate(lastError.message, 200)}</p>
+          <p className="mt-1 hud-fg">{truncate(lastError.message, 200)}</p>
         </motion.div>
       ) : null}
     </AnimatePresence>

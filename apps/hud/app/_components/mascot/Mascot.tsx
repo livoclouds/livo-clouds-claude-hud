@@ -14,12 +14,12 @@ import type { HudEnvelope } from '@/lib/store';
 import { MascotGlyph } from './MascotGlyph';
 
 const STATE_TINT: Record<MascotState, string> = {
-  idle: 'text-white/70',
+  idle: 'text-[color:var(--color-hud-fg-soft)]',
   listening: 'text-[var(--color-hud-accent)]',
   thinking: 'text-[var(--color-hud-accent)]',
   editing: 'text-[var(--color-hud-accent)]',
   running: 'text-[var(--color-hud-warn)]',
-  succeeded: 'text-emerald-300',
+  succeeded: 'text-[color:var(--color-hud-success)]',
   errored: 'text-[var(--color-hud-critical)]',
   compacting: 'text-sky-300',
 };

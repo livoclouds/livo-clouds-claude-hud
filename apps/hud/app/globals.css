@@ -1,25 +1,105 @@
 @import 'tailwindcss';
 
+/* ---------------------------------------------------------------------------
+   HUD design tokens — glassmorphism (Phase 0 D-0.2).
+   Tokens are scoped per theme via the `data-theme` attribute set by
+   `next-themes`. The unscoped block below acts as the SSR default so the
+   first paint matches the dark theme (avoids a white flash).
+   --------------------------------------------------------------------------- */
+
 @theme {
   --color-hud-bg: #0a0a0a;
+  --color-hud-bg-elev: #14130f;
   --color-hud-fg: #f4f4f4;
+  --color-hud-fg-soft: rgba(244, 244, 244, 0.7);
+  --color-hud-fg-muted: rgba(244, 244, 244, 0.45);
+  --color-hud-card-bg: rgba(255, 255, 255, 0.05);
+  --color-hud-card-border: rgba(255, 255, 255, 0.1);
   --color-hud-accent: #cc785c;
   --color-hud-warn: #e8a33d;
   --color-hud-critical: #e0556a;
+  --color-hud-success: #6ee7b7;
   --color-hud-glass: rgba(255, 255, 255, 0.05);
+
   --radius-hud-card: 1rem;
   --blur-hud-card: 24px;
+
+  --shadow-hud-card-inner: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+:root,
+:root[data-theme='dark'] {
+  --color-hud-bg: #0a0a0a;
+  --color-hud-bg-elev: #14130f;
+  --color-hud-fg: #f4f4f4;
+  --color-hud-fg-soft: rgba(244, 244, 244, 0.7);
+  --color-hud-fg-muted: rgba(244, 244, 244, 0.45);
+  --color-hud-card-bg: rgba(255, 255, 255, 0.05);
+  --color-hud-card-border: rgba(255, 255, 255, 0.1);
+  --color-hud-accent: #cc785c;
+  --color-hud-warn: #e8a33d;
+  --color-hud-critical: #e0556a;
+  --color-hud-success: #6ee7b7;
+  --color-hud-glass: rgba(255, 255, 255, 0.05);
+  --shadow-hud-card-inner: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  --gradient-stop-a: rgba(204, 120, 92, 0.12);
+  --gradient-stop-b: rgba(204, 120, 92, 0.08);
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --color-hud-bg: #f7f6f2;
+  --color-hud-bg-elev: #ffffff;
+  --color-hud-fg: #1a1a1a;
+  --color-hud-fg-soft: rgba(26, 26, 26, 0.72);
+  --color-hud-fg-muted: rgba(26, 26, 26, 0.5);
+  --color-hud-card-bg: rgba(255, 255, 255, 0.62);
+  --color-hud-card-border: rgba(20, 18, 14, 0.12);
+  --color-hud-accent: #cc785c;
+  --color-hud-warn: #c97a20;
+  --color-hud-critical: #b53249;
+  --color-hud-success: #2f8f5b;
+  --color-hud-glass: rgba(255, 255, 255, 0.45);
+  --shadow-hud-card-inner: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+  --gradient-stop-a: rgba(204, 120, 92, 0.18);
+  --gradient-stop-b: rgba(204, 120, 92, 0.1);
+  color-scheme: light;
 }
 
 html,
 body {
   background:
-    radial-gradient(1200px 800px at 12% -10%, rgba(204, 120, 92, 0.12), transparent 60%),
-    radial-gradient(900px 600px at 92% 110%, rgba(204, 120, 92, 0.08), transparent 60%),
+    radial-gradient(1200px 800px at 12% -10%, var(--gradient-stop-a), transparent 60%),
+    radial-gradient(900px 600px at 92% 110%, var(--gradient-stop-b), transparent 60%),
     var(--color-hud-bg);
   background-attachment: fixed;
   color: var(--color-hud-fg);
   min-height: 100dvh;
+}
+
+/* Reusable glass-card surface — shared by every HUD card. */
+.hud-card {
+  background: var(--color-hud-card-bg);
+  border: 1px solid var(--color-hud-card-border);
+  border-radius: var(--radius-hud-card);
+  backdrop-filter: blur(var(--blur-hud-card));
+  -webkit-backdrop-filter: blur(var(--blur-hud-card));
+  box-shadow: var(--shadow-hud-card-inner);
+}
+
+.hud-fg {
+  color: var(--color-hud-fg);
+}
+.hud-fg-soft {
+  color: var(--color-hud-fg-soft);
+}
+.hud-fg-muted {
+  color: var(--color-hud-fg-muted);
+}
+.hud-accent {
+  color: var(--color-hud-accent);
 }
 
 @media (prefers-reduced-motion: reduce) {
