@@ -881,7 +881,7 @@
           id: "phase-5",
           n: 5,
           title: "Live View",
-          status: "na",
+          status: "ok",
           summary:
             "First visible UI: session card, tokens, cost, model, context ring, last tool — all reacting to SSE.",
           outcome:
@@ -891,19 +891,21 @@
           inScope: [
             "apps/hud/app/page.tsx (RSC with bus snapshot)",
             "live components: SessionCard, TokenStat, CostStat, ContextRing, LastTool",
-            "lib/store.ts Zustand store",
-            "lib/sse-client.ts EventSource hook with reconnect",
-            "Counter animations with Motion",
+            "lib/store.ts Zustand store + shared reduce()",
+            "lib/sse-client.ts EventSource hook with reconnect + visibilitychange",
+            "Counter animations with Motion (useSpring 200/30, reduce-motion aware)",
+            "scripts/synth-event.sh local testing helper",
           ],
           outOfScope: [
             "Mascot (Phase 6)",
             "Theme toggle, /sessions, /cost, gestures (Phase 7)",
             "PWA install (Phase 8)",
+            "i18n via next-intl (deferred; English literals in Phase 5)",
           ],
           decisions: [
-            "D-5.1 Number-change animation (default: useSpring 200/30, capped 600ms)",
-            "D-5.2 Context-ring thresholds (neutral 0–70%, amber 70–90%, red 90+)",
-            "D-5.3 Last-tool definition (latest tool.use for active session)",
+            "D-5.1 resolved (default): useSpring 200/30, motion settles <600ms, reduce-motion jumps",
+            "D-5.2 resolved (default): thresholds in lib/thresholds.ts — warn≥70, critical≥90",
+            "D-5.3 resolved (default): latest tool.use for active session; sub-agents folded into parent",
           ],
           deliverables: [
             "apps/hud/app/page.tsx + _components/live/*",
