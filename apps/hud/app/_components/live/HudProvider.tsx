@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -10,9 +11,10 @@ import {
 } from 'react';
 import { useStore } from 'zustand';
 import { createHudStore, type HudState, type HudStoreApi } from '@/lib/store';
-import { useEventStream } from '@/lib/sse-client';
+import { useEventStream, type SseStatus } from '@/lib/sse-client';
 
 const HudStoreContext = createContext<HudStoreApi | null>(null);
+const SseStatusContext = createContext<SseStatus>('connecting');
 
 export function HudProvider({
   initial,
@@ -27,7 +29,10 @@ export function HudProvider({
   }
   const store = storeRef.current;
 
-  useEventStream(store);
+  const [sseStatus, setSseStatus] = useState<SseStatus>('connecting');
+  const onStatusChange = useCallback((s: SseStatus) => setSseStatus(s), []);
+
+  useEventStream(store, { onStatusChange });
 
   // Mark hydrated on the client so reduced-motion / time-based UI can mount
   // after the first paint without producing a server/client mismatch.
@@ -38,7 +43,9 @@ export function HudProvider({
 
   return (
     <HudStoreContext.Provider value={store}>
-      <HudHydrationContext.Provider value={hydrated}>{children}</HudHydrationContext.Provider>
+      <SseStatusContext.Provider value={sseStatus}>
+        <HudHydrationContext.Provider value={hydrated}>{children}</HudHydrationContext.Provider>
+      </SseStatusContext.Provider>
     </HudStoreContext.Provider>
   );
 }
@@ -47,6 +54,10 @@ const HudHydrationContext = createContext<boolean>(false);
 
 export function useHudHydrated(): boolean {
   return useContext(HudHydrationContext);
+}
+
+export function useSseStatus(): SseStatus {
+  return useContext(SseStatusContext);
 }
 
 function useHudStoreApi(): HudStoreApi {

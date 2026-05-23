@@ -13,16 +13,6 @@ export function LiveView() {
   return (
     <MetricSheetProvider>
       <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10">
-        <header className="flex items-baseline justify-between">
-          <h1 className="font-mono text-lg hud-fg">
-            <span aria-hidden className="hud-accent mr-2">
-              ✦
-            </span>
-            Claude Code HUD
-          </h1>
-          <p className="hud-fg-muted text-xs">Live view</p>
-        </header>
-
         <ErrorPill />
 
         <section className="flex justify-center py-2">
