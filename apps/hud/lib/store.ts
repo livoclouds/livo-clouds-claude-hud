@@ -1,5 +1,6 @@
 import type { HudEvent } from '@livoclouds/contracts';
 import { createStore } from 'zustand/vanilla';
+import { RECENT_EVENTS_CAP } from './mascot/timeouts';
 
 export type HudTokens = {
   in: number;
@@ -27,6 +28,11 @@ export type HudSession = {
   endedAt: number | null;
 };
 
+export type HudEnvelope = {
+  id: string;
+  event: HudEvent;
+};
+
 export type HudState = {
   session: HudSession | null;
   tokens: HudTokens;
@@ -37,6 +43,9 @@ export type HudState = {
   lastActivityAt: number | null;
   lastEventId: string | null;
   replayTruncated: boolean;
+  // Bounded ring of the most recent envelopes (oldest → newest). Consumed by
+  // the mascot state derivation; capped so RSC snapshot hydration stays small.
+  recentEvents: ReadonlyArray<HudEnvelope>;
 };
 
 export const EMPTY_STATE: HudState = {
@@ -49,18 +58,28 @@ export const EMPTY_STATE: HudState = {
   lastActivityAt: null,
   lastEventId: null,
   replayTruncated: false,
+  recentEvents: [],
 };
 
-export type HudEnvelope = {
-  id: string;
-  event: HudEvent;
-};
+function appendRecent(
+  recent: ReadonlyArray<HudEnvelope>,
+  envelope: HudEnvelope,
+): ReadonlyArray<HudEnvelope> {
+  const next = recent.length >= RECENT_EVENTS_CAP
+    ? [...recent.slice(recent.length - RECENT_EVENTS_CAP + 1), envelope]
+    : [...recent, envelope];
+  return next;
+}
 
 // Single source of truth for turning an envelope into the next state.
 // Imported by the RSC for snapshot hydration and by the SSE client for live updates.
 export function reduce(state: HudState, envelope: HudEnvelope): HudState {
   const { event } = envelope;
-  const next: HudState = { ...state, lastEventId: envelope.id };
+  const next: HudState = {
+    ...state,
+    lastEventId: envelope.id,
+    recentEvents: appendRecent(state.recentEvents, envelope),
+  };
 
   switch (event.type) {
     case 'session.start': {
@@ -77,6 +96,7 @@ export function reduce(state: HudState, envelope: HudEnvelope): HudState {
       next.lastTool = null;
       next.lastError = null;
       next.lastActivityAt = event.ts;
+      next.recentEvents = [envelope];
       return next;
     }
 
