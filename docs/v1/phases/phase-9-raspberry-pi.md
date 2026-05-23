@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Phase ID | `phase-9` |
-| Status | ⚪ Not Started |
+| Status | 🟢 Complete |
 | Depends on | `phase-7` |
 | Blocks | — |
 | Target outcome | A Raspberry Pi 5 with a small HDMI panel boots directly into the HUD running in Chromium kiosk mode |
@@ -40,23 +40,30 @@ always-on companion screen. The Pi does not run Claude Code; it only renders.
 
 ## Open Decisions
 
-### D-9.1 — Browser
+### D-9.1 — Browser — Resolved (default)
 
-**Default proposal**: **Chromium** in `--kiosk --noerrdialogs --disable-infobars
---app=https://<hud-host>:3000`. Reason: best SSE + PWA support on Pi OS.
-Firefox-ESR is documented as a fallback.
+**Decision**: **Chromium** launched as `chromium-browser --kiosk
+--app="$HUD_URL"` from a systemd user unit, with `--noerrdialogs
+--disable-infobars --disable-translate --disable-features=TranslateUI
+--disable-session-crashed-bubble --disable-component-update --no-first-run
+--no-default-browser-check --check-for-update-interval=31536000
+--overscroll-history-navigation=0 --password-store=basic
+--user-data-dir=%h/.local/share/livo-clouds-hud-kiosk`. Best SSE + PWA support
+on Pi OS. Firefox-ESR remains a community fallback (not delivered).
 
-### D-9.2 — Network model
+### D-9.2 — Network model — Resolved (default)
 
-**Default proposal**: assume the Pi is on the same LAN as the developer
-machine. For users who want the kiosk from a remote location, document the
-Tailscale install but do not bundle a Tailscale config in the repo.
+**Decision**: LAN-first by default — `HUD_URL` points at the dev machine's
+LAN address or `*.local`. Tailscale is documented in the operator guide as
+an optional alternative; no Tailscale config or auth keys ship in the repo.
 
-### D-9.3 — Rotation
+### D-9.3 — Rotation — Resolved (default)
 
-**Default proposal**: detect the panel's natural orientation and rotate via
-`xrandr` if a `ROTATE` env var is set in the systemd unit. Document the common
-values per panel.
+**Decision**: `~/.local/bin/xrandr-rotate.sh` runs as a unit `ExecStartPre`.
+It reads `ROTATE` from `~/.config/livo-clouds-hud-kiosk.env`. Empty or
+invalid → silently exits 0 (kiosk still starts). Valid values:
+`normal | left | right | inverted`. Touch coordinate remapping after
+rotation is documented as a manual `xinput` step in the operator guide.
 
 ## Deliverables
 
@@ -99,3 +106,18 @@ docs/v1/setup/
 
 - [`./phase-8-pwa-ipad.md`](./phase-8-pwa-ipad.md) — sibling kiosk path on iPad.
 - [`../architecture.md`](../architecture.md) — Pi is a sink in the topology.
+- [`../setup/setup-raspberry-pi-kiosk.md`](../setup/setup-raspberry-pi-kiosk.md) —
+  operator guide produced by this phase.
+
+## Change Log
+
+- **Sealed** — Phase 9 delivered as `docs+deploy: Raspberry Pi 5 kiosk
+  (Phase 9)`. Shipped:
+  - `deploy/raspberry-pi/setup.sh` — idempotent apt + systemd installer.
+  - `deploy/raspberry-pi/kiosk.service` — Chromium kiosk systemd user unit
+    with `Restart=always` and `xset` blanking guards.
+  - `deploy/raspberry-pi/xrandr-rotate.sh` — opt-in portrait rotation helper.
+  - `docs/v1/setup/setup-raspberry-pi-kiosk.md` — full operator guide
+    (prerequisites, X11 switch, autologin, installer, rotation, touch
+    remap, verify, maintenance, troubleshooting, Tailscale pointer).
+  - D-9.1 / D-9.2 / D-9.3 resolved at their defaults.
