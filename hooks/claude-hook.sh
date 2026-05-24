@@ -42,6 +42,20 @@ log_line() {
   fi
 }
 
+rotate_log() {
+  local lp
+  lp="$(log_path)"
+  local size=0
+  if [ -f "$lp" ]; then
+    size="$(wc -c < "$lp" 2>/dev/null)" || size=0
+  fi
+  if [ "$size" -ge 10485760 ]; then
+    [ -f "${lp}.2" ] && mv -f "${lp}.2" "${lp}.3" 2>/dev/null || true
+    [ -f "${lp}.1" ] && mv -f "${lp}.1" "${lp}.2" 2>/dev/null || true
+    mv -f "$lp" "${lp}.1" 2>/dev/null || true
+  fi
+}
+
 bail() {
   # bail <event-type-or-unknown> <note>
   log_line "${1:-unknown}" skip "${2:-unspecified}"
@@ -68,6 +82,8 @@ fi
 
 # Convert ms → seconds with millisecond resolution for curl --max-time.
 TIMEOUT_S="$(awk -v ms="$HUD_TIMEOUT_MS" 'BEGIN { printf "%.3f", ms/1000 }')"
+
+rotate_log
 
 # ----- read stdin -----------------------------------------------------------
 
@@ -118,6 +134,10 @@ elif [ -n "$HOOK_SESSION_ID" ]; then
   # degenerate and at worst we lose a name (the event still ships).
   PENDING_AGENT_FILE="${PENDING_AGENT_DIR%/}/hud-pending-agent-${HOOK_SESSION_ID}.json"
 fi
+
+# Remove stale pending-agent stash files older than 60 minutes (H8).
+find "${PENDING_AGENT_DIR%/}" -maxdepth 1 \
+  -name 'hud-pending-agent-*' -mmin +60 -delete 2>/dev/null || true
 
 AGENT_NAME=""
 CC_VERSION=""

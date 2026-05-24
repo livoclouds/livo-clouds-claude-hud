@@ -181,7 +181,9 @@ inside route handlers — extend the contract.
   UI lives in this repo. Reason: simpler ops, one process to monitor, single deploy.
 - **In-memory bus** is the default ring buffer (last 1 000 events). Persistence to a
   rolling JSONL file under `data/events-YYYY-MM-DD.jsonl` is for history views only —
-  the live HUD never reads from disk on the hot path.
+  the live HUD never reads from disk on the hot path. Log files are size-rotated: set
+  `HUD_LOG_MAX_SIZE_MB` (default `100`) to control the per-file ceiling; up to three
+  rotated generations are kept (`.1`, `.2`, `.3`).
 - **No external database** in v1. Add SQLite (via `better-sqlite3`) only when history
   queries become expensive or we need cross-day analytics.
 

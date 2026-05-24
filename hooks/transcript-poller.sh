@@ -52,6 +52,20 @@ log_line() {
   fi
 }
 
+rotate_log() {
+  local lp
+  lp="$(log_path)"
+  local size=0
+  if [ -f "$lp" ]; then
+    size="$(wc -c < "$lp" 2>/dev/null)" || size=0
+  fi
+  if [ "$size" -ge 10485760 ]; then
+    [ -f "${lp}.2" ] && mv -f "${lp}.2" "${lp}.3" 2>/dev/null || true
+    [ -f "${lp}.1" ] && mv -f "${lp}.1" "${lp}.2" 2>/dev/null || true
+    mv -f "$lp" "${lp}.1" 2>/dev/null || true
+  fi
+}
+
 bail() {
   log_line "${1:-turn.stop}" skip "${2:-unspecified}"
   exit 0
@@ -296,6 +310,7 @@ process_jsonl() {
 }
 
 while true; do
+  rotate_log
   if [ -d "$PROJECTS_DIR" ]; then
     # Only scan files touched in the last day — older sessions are dead.
     # -maxdepth 3 covers the typical "<projects>/<encoded-cwd>/<sid>.jsonl"

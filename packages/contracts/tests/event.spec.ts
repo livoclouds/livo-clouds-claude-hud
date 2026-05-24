@@ -260,6 +260,34 @@ describe('HudEventSchema — optional fields', () => {
     expect(result.success).toBe(true);
   });
 
+  it('sessions.snapshot rejects more than 1000 sessions (C1)', () => {
+    const entry = {
+      sessionId: 'x', name: 'n', cwd: '/tmp', status: 'active',
+      kind: 'fg', startedAt: 1, updatedAt: 1,
+    };
+    const payload = {
+      type: 'sessions.snapshot',
+      ts: 1779608000000,
+      sessions: Array.from({ length: 1001 }, () => ({ ...entry })),
+    };
+    const result = HudEventSchema.safeParse(payload);
+    expect(result.success).toBe(false);
+  });
+
+  it('sessions.snapshot accepts exactly 1000 sessions (C1)', () => {
+    const entry = {
+      sessionId: 'x', name: 'n', cwd: '/tmp', status: 'active',
+      kind: 'fg', startedAt: 1, updatedAt: 1,
+    };
+    const payload = {
+      type: 'sessions.snapshot',
+      ts: 1779608000000,
+      sessions: Array.from({ length: 1000 }, (_, i) => ({ ...entry, sessionId: 's' + i })),
+    };
+    const result = HudEventSchema.safeParse(payload);
+    expect(result.success).toBe(true);
+  });
+
   it('sessions.snapshot rejects a session entry missing name', () => {
     const broken = {
       ...sessionsSnapshot,

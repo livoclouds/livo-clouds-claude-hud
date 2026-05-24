@@ -204,7 +204,7 @@ const SessionsSnapshot = z
   .object({
     type: z.literal('sessions.snapshot'),
     ts,
-    sessions: z.array(CodeSessionInfo),
+    sessions: z.array(CodeSessionInfo).max(1000),
   })
   .strict();
 

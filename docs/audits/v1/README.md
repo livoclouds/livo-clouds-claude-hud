@@ -71,7 +71,7 @@ below is updated by hand at the end of each PR.
 
 | Phase | Severity | Status | PR |
 |---|---|---|---|
-| Phase 1 — Security & Disk | Critical | ⏳ Pending | — |
+| Phase 1 — Security & Disk | Critical | ✅ Completed | Local changes pending PR |
 | Phase 2 — Client performance | Critical | ⏳ Pending | — |
 | Phase 3 — Server & bus | High | ⏳ Pending | — |
 | Phase 4 — Pollers | Critical / High | ⏳ Pending | — |
