@@ -71,6 +71,7 @@ fi
 : "${SESSIONS_HEARTBEAT_S:=15}"
 : "${SESSIONS_DIR:=${HOME}/.claude/sessions}"
 : "${PROJECTS_DIR:=${HOME}/.claude/projects}"
+: "${JOBS_DIR:=${HOME}/.claude/jobs}"
 
 [ -n "$HUD_INGEST_TOKEN" ] || bail sessions.snapshot missing_token
 
@@ -91,7 +92,7 @@ else
   STAT_MTIME_FMT='-c %Y'
 fi
 
-log_line sessions.snapshot start "interval=${SESSIONS_POLLER_INTERVAL}s heartbeat=${SESSIONS_HEARTBEAT_S}s dir=$SESSIONS_DIR projects=$PROJECTS_DIR url=$HUD_URL"
+log_line sessions.snapshot start "interval=${SESSIONS_POLLER_INTERVAL}s heartbeat=${SESSIONS_HEARTBEAT_S}s sessions=$SESSIONS_DIR jobs=$JOBS_DIR projects=$PROJECTS_DIR url=$HUD_URL"
 
 # Terminate cleanly on SIGINT/SIGTERM so the calling shell isn't blocked.
 trap 'log_line sessions.snapshot stop signal; exit 0' INT TERM
@@ -127,61 +128,170 @@ build_activity_map() {
   printf '%s' "$map"
 }
 
-build_snapshot() {
-  # If the sessions dir doesn't exist or is empty, emit an empty snapshot.
-  if [ ! -d "$SESSIONS_DIR" ]; then
-    printf '{"type":"sessions.snapshot","ts":%d,"sessions":[]}' "$(date +%s)000"
-    return 0
-  fi
-
-  # Use a glob expansion guarded by nullglob semantics. Bash on macOS doesn't
-  # have nullglob by default, so we check the literal pattern.
+build_sessions_map() {
+  # Re-key ~/.claude/sessions/<pid>.json by sessionId so the jq pass in
+  # build_snapshot can look up pid / kind / startedAt / updatedAt for each
+  # daemon-managed state.json entry. Returns "{}" when no session files
+  # exist on disk.
+  if [ ! -d "$SESSIONS_DIR" ]; then printf '{}'; return 0; fi
   local files=( "$SESSIONS_DIR"/*.json )
-  if [ ! -e "${files[0]}" ]; then
-    printf '{"type":"sessions.snapshot","ts":%d,"sessions":[]}' "$(date +%s)000"
-    return 0
-  fi
+  if [ ! -e "${files[0]}" ]; then printf '{}'; return 0; fi
+  jq -s '
+    reduce (.[] | select(.sessionId != null)) as $s ({};
+      .[$s.sessionId] = {
+        pid: $s.pid,
+        kind: $s.kind,
+        sessionStatus: $s.status,
+        startedAt: $s.startedAt,
+        updatedAt: $s.updatedAt,
+        name: $s.name,
+        agent: $s.agent,
+        version: $s.version,
+        cwd: $s.cwd
+      }
+    )
+  ' "${files[@]}" 2>/dev/null
+}
 
-  local activity
+read_pins_set() {
+  # ~/.claude/jobs/pins.json is a top-level JSON array of short-IDs (the
+  # first 8 chars of the sessionId). Convert to a {shortId: true} map for
+  # O(1) jq lookup in build_snapshot.
+  local pins_file="${JOBS_DIR}/pins.json"
+  if [ ! -f "$pins_file" ]; then printf '{}'; return 0; fi
+  jq 'reduce .[] as $sid ({}; .[$sid] = true)' "$pins_file" 2>/dev/null
+}
+
+build_snapshot() {
+  # Source of truth for the buckets that match the terminal `/agents` view:
+  #   ~/.claude/jobs/<short>/state.json — semantic daemon state per session
+  #   ~/.claude/jobs/pins.json          — short-IDs the user has pinned
+  # We cross-reference ~/.claude/sessions/<pid>.json (re-keyed by sessionId
+  # via build_sessions_map) to fill in pid/kind/startedAt/updatedAt, and
+  # the JSONL mtime map for `lastActivityAt`. Orphan sessions (in
+  # sessions/ but not in jobs/) fall through with status from the OS-level
+  # session file so a freshly-launched session still surfaces.
+  local sessions_map activity pins
+  sessions_map="$(build_sessions_map)"
+  [ -z "$sessions_map" ] && sessions_map="{}"
   activity="$(build_activity_map)"
   [ -z "$activity" ] && activity="{}"
+  pins="$(read_pins_set)"
+  [ -z "$pins" ] && pins="{}"
 
-  # Build the sessions array. Each on-disk file is a single JSON object.
-  # `--slurp` reads them all into a top-level array; we then filter to
-  # entries that have the minimum required fields and project the schema.
-  # The activity map (sessionId → jsonl mtime ms) is injected via --argjson
-  # and looked up per-session as `lastActivityAt`. Missing optional fields
-  # are omitted via `with_entries(select(.value != null))`.
-  jq \
-    --slurpfile _now <(printf '[%d]' "$(date +%s)000") \
+  # Collect all state.json files (one per daemon-managed session) into a
+  # temp JSON array. Empty array when the daemon hasn't created any jobs.
+  local state_files=()
+  if [ -d "$JOBS_DIR" ]; then
+    while IFS= read -r f; do state_files+=( "$f" ); done < <(find "$JOBS_DIR" -maxdepth 2 -name state.json -type f 2>/dev/null)
+  fi
+  local states_tmp
+  states_tmp="$(mktemp -t hud-states.XXXXXX 2>/dev/null)" || {
+    printf '{"type":"sessions.snapshot","ts":%d,"sessions":[]}' "$(date +%s)000"
+    return 0
+  }
+  if [ ${#state_files[@]} -gt 0 ]; then
+    jq -s '.' "${state_files[@]}" >"$states_tmp" 2>/dev/null || printf '[]' >"$states_tmp"
+  else
+    printf '[]' >"$states_tmp"
+  fi
+
+  jq -n \
+    --slurpfile now <(printf '[%d]' "$(date +%s)000") \
+    --slurpfile states "$states_tmp" \
+    --argjson sessionsMap "$sessions_map" \
     --argjson activity "$activity" \
-    -s '
-    {
-      type: "sessions.snapshot",
-      ts: $_now[0][0],
-      sessions: (
-        [ .[]
-          | select(.sessionId != null and .name != null and .cwd != null
-                   and .status != null and .kind != null
-                   and .pid != null and .startedAt != null and .updatedAt != null)
+    --argjson pins "$pins" \
+    '
+    # Helper: parse the state.json ISO-8601 string (e.g. 2026-05-22T23:26:26.133Z)
+    # into a ms-epoch number. Used as a fallback for startedAt/updatedAt when
+    # the session has no live ~/.claude/sessions/<pid>.json (process exited).
+    # jq does not have a native ms parser, so we strip the millisecond suffix
+    # and multiply seconds.
+    def iso2ms:
+      if . == null then null
+      else
+        (sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601 * 1000)
+      end;
+
+    # Pass 1: build entries from each state.json, cross-referenced with
+    # session.json for pid/kind/startedAt/updatedAt when available.
+    (
+      ($states[0] // [])
+      | map(
+          (.sessionId // "") as $sid
+          | ($sid[0:8]) as $short
+          | ($sessionsMap[$sid] // null) as $cross
+          | select($sid != "" and .name != null)
           | {
-              pid: .pid,
-              sessionId: .sessionId,
-              name: .name,
-              cwd: .cwd,
-              status: .status,
-              kind: .kind,
-              agent: .agent,
-              version: .version,
-              startedAt: .startedAt,
-              updatedAt: .updatedAt,
-              lastActivityAt: ($activity[.sessionId] // null)
+              pid:           ($cross.pid // null),
+              sessionId:     $sid,
+              name:          .name,
+              cwd:           (.cwd // $cross.cwd // ""),
+              status:        (.state // "unknown"),
+              kind:          (.template // $cross.kind // "bg"),
+              agent:         $cross.agent,
+              version:       (.cliVersion // $cross.version),
+              startedAt:     ($cross.startedAt // (.createdAt | iso2ms) // 0),
+              updatedAt:     ($cross.updatedAt // (.updatedAt | iso2ms) // 0),
+              lastActivityAt: ($activity[$sid] // null),
+              pinnedByClaudeCode: ($pins[$short] // false),
+              detail:        (.detail // null),
+              tempo:         (.tempo // null)
             }
-          | with_entries(select(.value != null))
-        ]
-      )
-    }
-  ' "${files[@]}" 2>/dev/null
+        )
+    ) as $primary
+
+    # Pass 2: orphans — sessions on disk that have no matching state.json.
+    | ($primary | map(.sessionId)) as $covered
+    | (
+        $sessionsMap
+        | to_entries
+        | map(select((.key as $k | $covered | index($k)) == null))
+        | map(
+            . as $entry
+            | {
+                pid:           $entry.value.pid,
+                sessionId:     $entry.key,
+                name:          $entry.value.name,
+                cwd:           ($entry.value.cwd // ""),
+                status:        ($entry.value.sessionStatus // "unknown"),
+                kind:          ($entry.value.kind // "bg"),
+                agent:         $entry.value.agent,
+                version:       $entry.value.version,
+                startedAt:     $entry.value.startedAt,
+                updatedAt:     $entry.value.updatedAt,
+                lastActivityAt: ($activity[$entry.key] // null)
+              }
+          )
+      ) as $orphans
+
+    # Merge, drop null/false-only optional fields, enforce contract minima.
+    | {
+        type: "sessions.snapshot",
+        ts: $now[0][0],
+        sessions: (
+          ($primary + $orphans)
+          | map(
+              with_entries(
+                select(
+                  (.value != null)
+                  and (.key == "pinnedByClaudeCode" or .value != false)
+                )
+              )
+            )
+          | map(select(
+              (.sessionId | length) > 0
+              and (.name | length) > 0
+              and ((.name // "") != ((.sessionId // "")[0:8]))
+              and ((.cwd // "") | length) > 0
+              and (.startedAt > 0)
+            ))
+        )
+      }
+    '
+
+  rm -f "$states_tmp"
 }
 
 hash_snapshot() {

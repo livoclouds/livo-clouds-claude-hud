@@ -163,7 +163,10 @@ const ErrorEvent = z
 // including for sessions that never fire a hook into this HUD instance.
 const CodeSessionInfo = z
   .object({
-    pid: z.number().int().positive(),
+    // OS pid of the running Claude Code session process. Optional because
+    // sessions whose process has exited keep a `~/.claude/jobs/<short>/state.json`
+    // entry around (with terminal status "completed") but no live PID.
+    pid: z.number().int().nonnegative().optional(),
     sessionId,
     name: z.string().min(1),
     cwd: z.string().min(1),
@@ -177,13 +180,23 @@ const CodeSessionInfo = z
     startedAt: z.number().int().nonnegative(),
     updatedAt: z.number().int().nonnegative(),
     // Mtime (ms epoch) of the per-session JSONL transcript at
-    // ~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl. That file is
-    // touched on *every* Claude Code event in the session, so it's a much
-    // better signal of real activity than `updatedAt` (which only moves on
-    // lifecycle transitions). The HUD's SessionsDashboard uses it to
-    // bucket long-idle sessions into "Completed". Optional because the
-    // JSONL may not exist for very new or zombie sessions.
+    // ~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl. Useful "last
+    // activity" hint for orphan sessions (those without a daemon-managed
+    // state.json). Optional — the JSONL may not exist for very new or
+    // zombie sessions.
     lastActivityAt: z.number().int().nonnegative().optional(),
+    // Whether Claude Code itself pinned this session — read from
+    // `~/.claude/jobs/pins.json`. The HUD also keeps its own
+    // localStorage pin list; the Pinned section is the union of the two
+    // so the HUD never hides a session the user pinned in the terminal.
+    pinnedByClaudeCode: z.boolean().optional(),
+    // One-line description from `~/.claude/jobs/<short>/state.json`
+    // `detail`. The terminal renders this next to each entry; the HUD
+    // surfaces it as a secondary line on the SessionCardRow when present.
+    detail: z.string().min(1).optional(),
+    // Granular activity flavor from state.json (`active` / `idle` /
+    // `blocked`). Carried through for future debug UI; not bucketed on.
+    tempo: z.string().min(1).optional(),
   })
   .strict();
 

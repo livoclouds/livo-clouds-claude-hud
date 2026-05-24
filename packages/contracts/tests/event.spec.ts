@@ -202,7 +202,7 @@ describe('HudEventSchema — optional fields', () => {
     if (result.success && result.data.type === 'sessions.snapshot') {
       expect(result.data.sessions.length).toBe(2);
       expect(result.data.sessions[0]!.name).toBe('Edit bank profile - popup');
-      expect(result.data.sessions[0]!.status).toBe('busy');
+      expect(result.data.sessions[0]!.status).toBe('blocked');
       expect(result.data.sessions[1]!.kind).toBe('fg');
     }
   });
@@ -213,6 +213,23 @@ describe('HudEventSchema — optional fields', () => {
     if (result.success && result.data.type === 'sessions.snapshot') {
       expect(result.data.sessions[0]!.lastActivityAt).toBe(1779608790000);
       expect(result.data.sessions[1]!.lastActivityAt).toBe(1779608100000);
+    }
+  });
+
+  it('CodeSessionInfo carries pinnedByClaudeCode + detail + tempo from ~/.claude/jobs/<short>/state.json', () => {
+    const result = HudEventSchema.safeParse(sessionsSnapshot);
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === 'sessions.snapshot') {
+      const first = result.data.sessions[0]!;
+      expect(first.status).toBe('blocked');
+      expect(first.pinnedByClaudeCode).toBe(true);
+      expect(first.detail).toBe('awaiting reviewer confirmation on schema change');
+      expect(first.tempo).toBe('blocked');
+      // The second fixture entry omits the new fields — confirms they're optional.
+      const second = result.data.sessions[1]!;
+      expect(second.pinnedByClaudeCode).toBeUndefined();
+      expect(second.detail).toBeUndefined();
+      expect(second.tempo).toBeUndefined();
     }
   });
 

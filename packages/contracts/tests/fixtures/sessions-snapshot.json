@@ -7,13 +7,16 @@
       "sessionId": "0d1e52d0-a1e2-44cd-8f53-707c04fe3a63",
       "name": "Edit bank profile - popup",
       "cwd": "/Users/example/Code/livo-clouds-web-app",
-      "status": "busy",
+      "status": "blocked",
       "kind": "bg",
       "agent": "claude",
       "version": "2.1.150",
       "startedAt": 1779606482247,
       "updatedAt": 1779608767884,
-      "lastActivityAt": 1779608790000
+      "lastActivityAt": 1779608790000,
+      "pinnedByClaudeCode": true,
+      "detail": "awaiting reviewer confirmation on schema change",
+      "tempo": "blocked"
     },
     {
       "pid": 28353,
