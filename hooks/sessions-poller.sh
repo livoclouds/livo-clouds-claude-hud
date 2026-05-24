@@ -67,23 +67,65 @@ fi
 
 : "${HUD_INGEST_TOKEN:=}"
 : "${HUD_URL:=http://127.0.0.1:3000}"
-: "${SESSIONS_POLLER_INTERVAL:=2}"
+: "${SESSIONS_POLLER_INTERVAL:=1}"
+: "${SESSIONS_HEARTBEAT_S:=15}"
 : "${SESSIONS_DIR:=${HOME}/.claude/sessions}"
+: "${PROJECTS_DIR:=${HOME}/.claude/projects}"
 
 [ -n "$HUD_INGEST_TOKEN" ] || bail sessions.snapshot missing_token
 
-# Validate interval — fall back to 2s if it is not a positive integer.
+# Validate interval — fall back to 1s if it is not a positive integer.
 case "$SESSIONS_POLLER_INTERVAL" in
-  ''|*[!0-9]*) SESSIONS_POLLER_INTERVAL=2 ;;
-  *) [ "$SESSIONS_POLLER_INTERVAL" -lt 1 ] && SESSIONS_POLLER_INTERVAL=2 ;;
+  ''|*[!0-9]*) SESSIONS_POLLER_INTERVAL=1 ;;
+  *) [ "$SESSIONS_POLLER_INTERVAL" -lt 1 ] && SESSIONS_POLLER_INTERVAL=1 ;;
+esac
+case "$SESSIONS_HEARTBEAT_S" in
+  ''|*[!0-9]*) SESSIONS_HEARTBEAT_S=15 ;;
+  *) [ "$SESSIONS_HEARTBEAT_S" -lt 5 ] && SESSIONS_HEARTBEAT_S=5 ;;
 esac
 
-log_line sessions.snapshot start "interval=${SESSIONS_POLLER_INTERVAL}s dir=$SESSIONS_DIR url=$HUD_URL"
+# `stat` on macOS uses `-f '%m'`; on Linux it's `-c '%Y'`. Detect once.
+if stat -f '%m' / >/dev/null 2>&1; then
+  STAT_MTIME_FMT='-f %m'
+else
+  STAT_MTIME_FMT='-c %Y'
+fi
+
+log_line sessions.snapshot start "interval=${SESSIONS_POLLER_INTERVAL}s heartbeat=${SESSIONS_HEARTBEAT_S}s dir=$SESSIONS_DIR projects=$PROJECTS_DIR url=$HUD_URL"
 
 # Terminate cleanly on SIGINT/SIGTERM so the calling shell isn't blocked.
 trap 'log_line sessions.snapshot stop signal; exit 0' INT TERM
 
 PREV_HASH=""
+LAST_POST_TS=0
+
+build_activity_map() {
+  # Build a JSON object mapping sessionId → ms-epoch mtime of that
+  # session's JSONL transcript at ~/.claude/projects/*/<sid>.jsonl. The
+  # transcript is touched on every Claude Code event in the session, so its
+  # mtime is the most real-time "last activity" signal available. The
+  # HUD's SessionsDashboard uses it to bucket sessions into Completed when
+  # they've been idle for too long. Missing JSONL → no entry; the bucketer
+  # falls back to status-only logic.
+  local map="{"
+  local first=1
+  if [ -d "$PROJECTS_DIR" ]; then
+    while IFS= read -r jsonl; do
+      [ -z "$jsonl" ] && continue
+      local sid base mtime_s ms
+      base="$(basename "$jsonl")"
+      sid="${base%.jsonl}"
+      # shellcheck disable=SC2086
+      mtime_s="$(stat $STAT_MTIME_FMT "$jsonl" 2>/dev/null)"
+      [ -z "$mtime_s" ] && continue
+      ms=$((mtime_s * 1000))
+      if [ "$first" = 1 ]; then first=0; else map+=","; fi
+      map+="\"$sid\":$ms"
+    done < <(find "$PROJECTS_DIR" -maxdepth 3 -name '*.jsonl' -type f 2>/dev/null)
+  fi
+  map+="}"
+  printf '%s' "$map"
+}
 
 build_snapshot() {
   # If the sessions dir doesn't exist or is empty, emit an empty snapshot.
@@ -100,11 +142,20 @@ build_snapshot() {
     return 0
   fi
 
+  local activity
+  activity="$(build_activity_map)"
+  [ -z "$activity" ] && activity="{}"
+
   # Build the sessions array. Each on-disk file is a single JSON object.
   # `--slurp` reads them all into a top-level array; we then filter to
   # entries that have the minimum required fields and project the schema.
-  # Missing optional fields are omitted via `with_entries(select(.value != null))`.
-  jq --slurpfile _now <(printf '[%d]' "$(date +%s)000") -s '
+  # The activity map (sessionId → jsonl mtime ms) is injected via --argjson
+  # and looked up per-session as `lastActivityAt`. Missing optional fields
+  # are omitted via `with_entries(select(.value != null))`.
+  jq \
+    --slurpfile _now <(printf '[%d]' "$(date +%s)000") \
+    --argjson activity "$activity" \
+    -s '
     {
       type: "sessions.snapshot",
       ts: $_now[0][0],
@@ -123,7 +174,8 @@ build_snapshot() {
               agent: .agent,
               version: .version,
               startedAt: .startedAt,
-              updatedAt: .updatedAt
+              updatedAt: .updatedAt,
+              lastActivityAt: ($activity[.sessionId] // null)
             }
           | with_entries(select(.value != null))
         ]
@@ -144,10 +196,15 @@ hash_snapshot() {
 while true; do
   SNAPSHOT="$(build_snapshot)"
   if [ -n "$SNAPSHOT" ]; then
-    # Strip the volatile `ts` field before hashing so the hash only changes
-    # when actual session state changes — otherwise we'd POST every tick.
+    # Hash only the sessions array so the volatile `ts` field doesn't
+    # invalidate the hash on every tick. POST when state changes, OR when
+    # the last POST is older than the heartbeat interval — the heartbeat
+    # keeps the HUD's `codeSessionsUpdatedAt` fresh so the dashboard
+    # doesn't show the "stale data" banner during quiet periods.
     HASH="$(printf '%s' "$SNAPSHOT" | jq -c '.sessions' 2>/dev/null | hash_snapshot)"
-    if [ -n "$HASH" ] && [ "$HASH" != "$PREV_HASH" ]; then
+    NOW_TS="$(date +%s)"
+    ELAPSED=$((NOW_TS - LAST_POST_TS))
+    if [ -n "$HASH" ] && { [ "$HASH" != "$PREV_HASH" ] || [ "$ELAPSED" -ge "$SESSIONS_HEARTBEAT_S" ]; }; then
       HTTP="$(curl -sS -o /dev/null -w '%{http_code}' \
         --max-time 5 \
         -X POST \
@@ -156,8 +213,13 @@ while true; do
         -d "$SNAPSHOT" \
         "${HUD_URL%/}/api/events" 2>/dev/null)" || HTTP=""
       if [ "$HTTP" = "200" ] || [ "$HTTP" = "204" ]; then
-        log_line sessions.snapshot ok "count=$(printf '%s' "$SNAPSHOT" | jq -r '.sessions|length' 2>/dev/null)"
+        if [ "$HASH" = "$PREV_HASH" ]; then
+          log_line sessions.snapshot heartbeat "count=$(printf '%s' "$SNAPSHOT" | jq -r '.sessions|length' 2>/dev/null)"
+        else
+          log_line sessions.snapshot ok "count=$(printf '%s' "$SNAPSHOT" | jq -r '.sessions|length' 2>/dev/null)"
+        fi
         PREV_HASH="$HASH"
+        LAST_POST_TS="$NOW_TS"
       else
         log_line sessions.snapshot fail "http=${HTTP:-error}"
       fi

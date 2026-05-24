@@ -176,6 +176,14 @@ const CodeSessionInfo = z
     version: z.string().min(1).optional(),
     startedAt: z.number().int().nonnegative(),
     updatedAt: z.number().int().nonnegative(),
+    // Mtime (ms epoch) of the per-session JSONL transcript at
+    // ~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl. That file is
+    // touched on *every* Claude Code event in the session, so it's a much
+    // better signal of real activity than `updatedAt` (which only moves on
+    // lifecycle transitions). The HUD's SessionsDashboard uses it to
+    // bucket long-idle sessions into "Completed". Optional because the
+    // JSONL may not exist for very new or zombie sessions.
+    lastActivityAt: z.number().int().nonnegative().optional(),
   })
   .strict();
 
