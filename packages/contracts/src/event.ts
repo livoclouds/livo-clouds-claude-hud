@@ -155,6 +155,38 @@ const ErrorEvent = z
   })
   .strict();
 
+// One entry in a sessions snapshot. Mirrors the on-disk format of
+// `~/.claude/sessions/<pid>.json`, which is the source of truth that powers
+// Claude Code's terminal `/agents` view. The HUD does not derive these
+// fields from hooks — a sidecar poller (hooks/sessions-poller.sh) reads the
+// files and pushes snapshots so the HUD can mirror the terminal faithfully,
+// including for sessions that never fire a hook into this HUD instance.
+const CodeSessionInfo = z
+  .object({
+    pid: z.number().int().positive(),
+    sessionId,
+    name: z.string().min(1),
+    cwd: z.string().min(1),
+    // Claude Code statuses observed in ~/.claude/sessions/*.json. The schema
+    // accepts any non-empty string so the contract does not break if Claude
+    // Code introduces new states.
+    status: z.string().min(1),
+    kind: z.string().min(1),
+    agent: z.string().min(1).optional(),
+    version: z.string().min(1).optional(),
+    startedAt: z.number().int().nonnegative(),
+    updatedAt: z.number().int().nonnegative(),
+  })
+  .strict();
+
+const SessionsSnapshot = z
+  .object({
+    type: z.literal('sessions.snapshot'),
+    ts,
+    sessions: z.array(CodeSessionInfo),
+  })
+  .strict();
+
 export const HudEventSchema = z.discriminatedUnion('type', [
   SessionStart,
   SessionEnd,
@@ -166,6 +198,7 @@ export const HudEventSchema = z.discriminatedUnion('type', [
   AgentInvoke,
   AgentComplete,
   ErrorEvent,
+  SessionsSnapshot,
 ]);
 
 export const HudEventTypes = [
@@ -179,6 +212,7 @@ export const HudEventTypes = [
   'agent.invoke',
   'agent.complete',
   'error',
+  'sessions.snapshot',
 ] as const;
 
 export type HudEvent = z.infer<typeof HudEventSchema>;
@@ -193,4 +227,6 @@ export type CompactStartEvent = Extract<HudEvent, { type: 'compact.start' }>;
 export type CompactEndEvent = Extract<HudEvent, { type: 'compact.end' }>;
 export type AgentInvokeEvent = Extract<HudEvent, { type: 'agent.invoke' }>;
 export type AgentCompleteEvent = Extract<HudEvent, { type: 'agent.complete' }>;
+export type SessionsSnapshotEvent = Extract<HudEvent, { type: 'sessions.snapshot' }>;
+export type CodeSessionInfo = SessionsSnapshotEvent['sessions'][number];
 export type HudErrorEvent = Extract<HudEvent, { type: 'error' }>;

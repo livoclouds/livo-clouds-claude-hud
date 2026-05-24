@@ -7,6 +7,7 @@ import { TokenStat } from './TokenStat';
 import { CostStat } from './CostStat';
 import { ContextRing } from './ContextRing';
 import { AgentsDashboard } from './AgentsDashboard';
+import { SessionsDashboard } from './SessionsDashboard';
 import { AgentDetailSheetProvider } from './AgentDetailSheet';
 import { ErrorPill } from './ErrorPill';
 
@@ -33,6 +34,16 @@ export function LiveView() {
               <TokenStat />
             </div>
             <CostStat />
+          </section>
+
+          {/* Top-level Sessions panel mirrors Claude Code's terminal `/agents`
+              view (every running session on the source Mac, fed by the
+              sidecar poller). The Subagents panel below covers Task-tool
+              invocations within whichever session this HUD is observing
+              via the hook stream — a different concept under the same word
+              "agent". Both stay visible. */}
+          <section>
+            <SessionsDashboard />
           </section>
 
           <section>

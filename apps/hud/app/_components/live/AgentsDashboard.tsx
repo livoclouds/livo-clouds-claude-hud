@@ -242,7 +242,7 @@ export function AgentsDashboard() {
   return (
     <div className="hud-card p-6">
       <div className="flex items-baseline justify-between gap-4">
-        <p className="hud-fg-muted text-xs uppercase tracking-wider">Agents</p>
+        <p className="hud-fg-muted text-xs uppercase tracking-wider">Subagents</p>
         {hasMeta && (
           <div className="hud-fg-muted flex items-center gap-2 text-[11px] font-mono">
             {claudeCodeVersion && <span title="Claude Code version">v{claudeCodeVersion}</span>}

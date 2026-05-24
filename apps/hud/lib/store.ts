@@ -1,4 +1,4 @@
-import type { HudEvent } from '@livoclouds/contracts';
+import type { CodeSessionInfo, HudEvent } from '@livoclouds/contracts';
 import { createStore } from 'zustand/vanilla';
 import { RECENT_EVENTS_CAP } from './mascot/timeouts';
 
@@ -63,6 +63,13 @@ export type HudAgent = {
   toolCalls: ReadonlyArray<HudAgentToolCall>;
 };
 
+// A live Claude Code session as observed on disk by the sessions-poller
+// sidecar. This is the data that powers the SessionsDashboard — it mirrors
+// the terminal `/agents` view (each running Claude Code conversation has
+// one of these). Distinct from `HudSession` above, which represents the
+// single session whose event stream is being consumed by this HUD instance.
+export type HudCodeSession = CodeSessionInfo;
+
 export type HudEnvelope = {
   id: string;
   event: HudEvent;
@@ -94,6 +101,16 @@ export type HudState = {
   // agent.complete). Used to tag inbound `tool.use` events so the detail sheet
   // can show what the subagent did. Null when no subagent is running.
   currentAgent: string | null;
+  // Map of live Claude Code sessions keyed by sessionId, populated by the
+  // sessions.snapshot event (sidecar poller). This is what powers the
+  // top-level SessionsDashboard — it mirrors what the terminal `/agents`
+  // view shows. The map is replaced wholesale on every snapshot so deletes
+  // are observed correctly (a session that has gone away is simply absent
+  // from the next snapshot).
+  codeSessions: Readonly<Record<string, HudCodeSession>>;
+  // Timestamp of the latest sessions.snapshot the HUD received, in ms epoch.
+  // Used by the dashboard to surface "stale" data if the poller has stopped.
+  codeSessionsUpdatedAt: number | null;
   // Bounded ring of the most recent envelopes (oldest → newest). Consumed by
   // the mascot state derivation; capped so RSC snapshot hydration stays small.
   recentEvents: ReadonlyArray<HudEnvelope>;
@@ -116,6 +133,8 @@ export const EMPTY_STATE: HudState = {
   connectionState: 'connected',
   agents: {},
   currentAgent: null,
+  codeSessions: {},
+  codeSessionsUpdatedAt: null,
   recentEvents: [],
 };
 
@@ -313,6 +332,21 @@ export function reduce(state: HudState, envelope: HudEnvelope): HudState {
         ts: event.ts,
       };
       next.lastActivityAt = event.ts;
+      return next;
+    }
+
+    case 'sessions.snapshot': {
+      // The poller is authoritative — replace the map wholesale so deletes
+      // and renames are observed. We intentionally do NOT touch
+      // lastActivityAt here: the snapshot is a passive heartbeat, not
+      // session-level activity, and bumping it would confuse the mascot
+      // idle timeout.
+      const map: Record<string, HudCodeSession> = {};
+      for (const s of event.sessions) {
+        map[s.sessionId] = s;
+      }
+      next.codeSessions = map;
+      next.codeSessionsUpdatedAt = event.ts;
       return next;
     }
   }

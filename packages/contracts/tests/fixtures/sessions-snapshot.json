@@ -1,0 +1,28 @@
+{
+  "type": "sessions.snapshot",
+  "ts": 1779608768000,
+  "sessions": [
+    {
+      "pid": 11131,
+      "sessionId": "0d1e52d0-a1e2-44cd-8f53-707c04fe3a63",
+      "name": "Edit bank profile - popup",
+      "cwd": "/Users/example/Code/livo-clouds-web-app",
+      "status": "busy",
+      "kind": "bg",
+      "agent": "claude",
+      "version": "2.1.150",
+      "startedAt": 1779606482247,
+      "updatedAt": 1779608767884
+    },
+    {
+      "pid": 28353,
+      "sessionId": "c4f87a8d-b5e1-4f23-aac3-89abcdef0001",
+      "name": "unit-testing IMP-M4",
+      "cwd": "/Users/example/Code/livo-clouds-api-app",
+      "status": "idle",
+      "kind": "fg",
+      "startedAt": 1779601200000,
+      "updatedAt": 1779608000000
+    }
+  ]
+}

@@ -67,7 +67,11 @@ function emptyDay(day: string): DayBundle {
   };
 }
 
-function ensureSession(bundle: DayBundle, event: HudEvent): SessionAggregate {
+// Excludes the sessions.snapshot event, which has no `sessionId` — it is a
+// global heartbeat from the sidecar poller, not a session-level event.
+type SessionScopedEvent = Exclude<HudEvent, { type: 'sessions.snapshot' }>;
+
+function ensureSession(bundle: DayBundle, event: SessionScopedEvent): SessionAggregate {
   let agg = bundle.sessions.get(event.sessionId);
   if (!agg) {
     agg = {
@@ -96,6 +100,9 @@ function ensureSession(bundle: DayBundle, event: HudEvent): SessionAggregate {
 }
 
 function applyEvent(bundle: DayBundle, event: HudEvent): void {
+  // Snapshot events are global heartbeats — they do not belong to any one
+  // session and are not aggregated into per-session totals.
+  if (event.type === 'sessions.snapshot') return;
   const agg = ensureSession(bundle, event);
   switch (event.type) {
     case 'session.start': {

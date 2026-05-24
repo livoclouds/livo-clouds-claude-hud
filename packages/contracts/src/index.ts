@@ -13,4 +13,6 @@ export {
   type AgentInvokeEvent,
   type AgentCompleteEvent,
   type HudErrorEvent,
+  type SessionsSnapshotEvent,
+  type CodeSessionInfo,
 } from './event';
