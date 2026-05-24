@@ -6,6 +6,13 @@ import { basename, relativeTime, truncate } from '@/lib/format';
 
 export function SessionCard() {
   const session = useHud((s) => s.session);
+  // Look up a human-readable name from the sessions poller snapshot. When the
+  // poller is feeding data (default with `pnpm dev`), the name is the title
+  // the user gave the session in Claude Code (e.g. "Edit bank profile -
+  // popup") instead of a truncated UUID.
+  const sessionName = useHud((s) =>
+    s.session ? (s.codeSessions[s.session.id]?.name ?? null) : null,
+  );
   const hydrated = useHudHydrated();
   const [now, setNow] = useState(() => Date.now());
 
@@ -38,11 +45,19 @@ export function SessionCard() {
   return (
     <div className="hud-card p-6">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <p className="hud-fg-muted text-xs uppercase tracking-wider">Active session</p>
-          <p className="hud-fg-soft mt-1 font-mono text-sm" title={session.id}>
-            {idLabel}
+          <p
+            className="hud-fg-soft mt-1 truncate font-mono text-sm"
+            title={sessionName ? `${sessionName} · ${session.id}` : session.id}
+          >
+            {sessionName ?? idLabel}
           </p>
+          {sessionName && (
+            <p className="hud-fg-muted mt-0.5 truncate font-mono text-[10px]" title={session.id}>
+              {idLabel}
+            </p>
+          )}
         </div>
         <span
           className="rounded-full px-2 py-1 text-[10px] uppercase tracking-wider"

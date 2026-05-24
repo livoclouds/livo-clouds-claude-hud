@@ -158,6 +158,52 @@ export function reduce(state: HudState, envelope: HudEnvelope): HudState {
     recentEvents: appendRecent(state.recentEvents, envelope),
   };
 
+  // Bootstrap the active session from any event carrying a sessionId. Claude
+  // Code's `SessionStart` hook fires only at session launch, so on a resumed
+  // or already-running session (or after a HUD restart) the dedicated
+  // session.start case never runs and the Active Session card is stuck on
+  // its "Waiting…" empty state. Synthesizing the session here means *any*
+  // observed event — prompt.submit, tool.use, turn.stop — is enough to
+  // populate the card. The explicit session.start case below still wins
+  // when it eventually arrives: it overwrites metadata and resets per-
+  // session counters.
+  if ('sessionId' in event) {
+    const sessionIdChanged = next.session !== null && next.session.id !== event.sessionId;
+    if (next.session === null || sessionIdChanged) {
+      next.session = {
+        id: event.sessionId,
+        model:
+          'model' in event && event.model
+            ? event.model
+            : sessionIdChanged
+              ? null
+              : next.session?.model ?? null,
+        cwd:
+          'cwd' in event && event.cwd
+            ? event.cwd
+            : sessionIdChanged
+              ? null
+              : next.session?.cwd ?? null,
+        startedAt: event.ts,
+        endedAt: null,
+      };
+      // Only wipe per-session totals when the sessionId actually flipped to
+      // a different session. A first-time synthesis from null state must
+      // preserve whatever totals follow-up events bring (turn.stop,
+      // agent.complete) — those reducers repopulate naturally from each
+      // event's payload, no zero-out needed.
+      if (sessionIdChanged) {
+        next.tokens = { in: 0, out: 0, cached: 0 };
+        next.costUsd = 0;
+        next.contextPct = 0;
+        next.lastTool = null;
+        next.lastError = null;
+        next.agents = {};
+        next.currentAgent = null;
+      }
+    }
+  }
+
   switch (event.type) {
     case 'session.start': {
       next.session = {
@@ -216,9 +262,13 @@ export function reduce(state: HudState, envelope: HudEnvelope): HudState {
       // the detail sheet can show exactly what the agent did. The Agent tool
       // itself never reaches this branch (it is mapped to agent.invoke /
       // agent.complete by the hook), so we don't need to filter it out here.
-      const owner = state.currentAgent;
-      if (owner && state.agents[owner]) {
-        const prior = state.agents[owner];
+      //
+      // Read from `next`, not `state` — the session-bootstrap step above can
+      // have cleared agents/currentAgent on a session-flip; reading `state`
+      // here would resurrect the cleared owner from the previous session.
+      const owner = next.currentAgent;
+      if (owner && next.agents[owner]) {
+        const prior = next.agents[owner];
         const nextCall: HudAgentToolCall = {
           name: event.tool,
           ts: event.ts,
@@ -229,7 +279,7 @@ export function reduce(state: HudState, envelope: HudEnvelope): HudState {
           ? [...prior.toolCalls.slice(prior.toolCalls.length - TOOL_CALLS_PER_AGENT_CAP + 1), nextCall]
           : [...prior.toolCalls, nextCall];
         next.agents = {
-          ...state.agents,
+          ...next.agents,
           [owner]: { ...prior, toolCalls: calls },
         };
       }

@@ -45,6 +45,90 @@ describe('reduce — session metadata', () => {
   });
 });
 
+describe('reduce — active session bootstrap (synthesis)', () => {
+  it('populates state.session from prompt.submit when no prior session.start exists', () => {
+    const e = env(at(2_500, { type: 'prompt.submit', cwd: '/repo', model: 'opus' }));
+    const next = reduce(EMPTY_STATE, e);
+    expect(next.session).toEqual({
+      id: SID,
+      model: 'opus',
+      cwd: '/repo',
+      startedAt: 2_500,
+      endedAt: null,
+    });
+  });
+
+  it('subsequent session.start with the SAME sessionId corrects startedAt and resets counters', () => {
+    // Synthesize first from a tool.use mid-flight.
+    let s = reduce(
+      EMPTY_STATE,
+      env(at(5_000, { type: 'tool.use', tool: 'Read', toolInput: { file_path: '/a' } })),
+    );
+    expect(s.session?.id).toBe(SID);
+    expect(s.session?.startedAt).toBe(5_000);
+    // Real session.start arrives later with the authoritative start time.
+    s = reduce(
+      s,
+      env(at(1_000, { type: 'session.start', cwd: '/repo', model: 'opus' })),
+    );
+    expect(s.session?.startedAt).toBe(1_000);
+    expect(s.session?.id).toBe(SID);
+    // session.start always zeros counters — that's its existing contract.
+    expect(s.tokens).toEqual({ in: 0, out: 0, cached: 0 });
+    expect(s.agents).toEqual({});
+  });
+
+  it('a DIFFERENT sessionId flips the active session and resets totals', () => {
+    let s = startSession();
+    s = reduce(s, env(at(2_000, { type: 'agent.invoke', agentName: 'Explore' })));
+    expect(s.currentAgent).toBe('Explore');
+    // Now an event from a different sessionId arrives (e.g., a second
+    // Claude Code instance pointing at the same HUD).
+    const otherId = 'sess-other';
+    s = reduce(s, {
+      id: 'env-other',
+      event: {
+        type: 'tool.use',
+        sessionId: otherId,
+        ts: 9_000,
+        tool: 'Bash',
+        cwd: '/other',
+        model: 'sonnet',
+      } as unknown as HudEvent,
+    });
+    expect(s.session?.id).toBe(otherId);
+    expect(s.session?.cwd).toBe('/other');
+    expect(s.session?.model).toBe('sonnet');
+    // Counters reset because we genuinely flipped to a new session.
+    expect(s.agents).toEqual({});
+    expect(s.currentAgent).toBeNull();
+    expect(s.tokens).toEqual({ in: 0, out: 0, cached: 0 });
+  });
+
+  it('sessions.snapshot has no sessionId and does NOT populate state.session', () => {
+    const snapshot: HudEvent = {
+      type: 'sessions.snapshot',
+      ts: 5_000,
+      sessions: [
+        {
+          pid: 1111,
+          sessionId: 'sess-from-snapshot',
+          name: 'Edit bank profile',
+          cwd: '/repo',
+          status: 'busy',
+          kind: 'bg',
+          startedAt: 1000,
+          updatedAt: 4000,
+        },
+      ],
+    } as unknown as HudEvent;
+    const s = reduce(EMPTY_STATE, env(snapshot));
+    expect(s.session).toBeNull();
+    // But codeSessions IS populated by the existing sessions.snapshot case.
+    expect(s.codeSessions['sess-from-snapshot']?.name).toBe('Edit bank profile');
+  });
+});
+
 describe('reduce — agent.invoke', () => {
   it('upserts the agent at status=working and sets currentAgent', () => {
     const s0 = startSession();
