@@ -102,6 +102,22 @@ AGENT_PROMPT="$(printf '%s' "$PAYLOAD" | jq -r '
   ((.tool_input // .toolInput) // {})
   | (.prompt // empty)
 ')"
+# Cross-event correlation key. tool_use_id is set on both Pre and PostToolUse
+# for the same tool invocation, so we can stash subagent context written by
+# PreToolUse(Agent) and recover it in PostToolUse if Claude Code's later
+# payload happens to drop tool_input.subagent_type.
+TOOL_USE_ID="$(printf '%s' "$PAYLOAD" | jq -r '.tool_use_id // .toolUseId // empty')"
+HOOK_SESSION_ID="$(printf '%s' "$PAYLOAD" | jq -r '.session_id // .sessionId // empty')"
+PENDING_AGENT_DIR="${HUD_PENDING_AGENT_DIR:-${TMPDIR:-/tmp}}"
+PENDING_AGENT_FILE=""
+if [ -n "$HOOK_SESSION_ID" ] && [ -n "$TOOL_USE_ID" ]; then
+  PENDING_AGENT_FILE="${PENDING_AGENT_DIR%/}/hud-pending-agent-${HOOK_SESSION_ID}-${TOOL_USE_ID}.json"
+elif [ -n "$HOOK_SESSION_ID" ]; then
+  # Fallback when tool_use_id is missing — one slot per session. Concurrent
+  # agents in the same session would clobber, but that path is already
+  # degenerate and at worst we lose a name (the event still ships).
+  PENDING_AGENT_FILE="${PENDING_AGENT_DIR%/}/hud-pending-agent-${HOOK_SESSION_ID}.json"
+fi
 
 AGENT_NAME=""
 CC_VERSION=""
@@ -134,6 +150,17 @@ case "$HOOK_NAME" in
     if [ "$TOOL_NAME" = "Agent" ] && [ -n "$SUBAGENT_TYPE" ]; then
       EVENT_TYPE="agent.invoke"
       AGENT_NAME="$SUBAGENT_TYPE"
+      # Stash the agent context so PostToolUse can recover the name even if
+      # Claude Code drops tool_input.subagent_type from the post payload.
+      if [ -n "$PENDING_AGENT_FILE" ]; then
+        jq -n \
+          --arg subagent_type "$SUBAGENT_TYPE" \
+          --arg description "$AGENT_DESC" \
+          --arg prompt "$AGENT_PROMPT" \
+          --argjson ts "$(date +%s)000" \
+          '{ subagent_type: $subagent_type, description: $description, prompt: $prompt, ts: $ts }' \
+          > "$PENDING_AGENT_FILE" 2>/dev/null || true
+      fi
     else
       bail "$HOOK_NAME" pretooluse_unmapped
     fi
@@ -142,9 +169,34 @@ case "$HOOK_NAME" in
     # PostToolUse for `Agent` marks subagent completion (and carries the
     # duration). All other tools still surface as `tool.use`. The duration is
     # read by the jq pipeline below from $p.duration_ms.
-    if [ "$TOOL_NAME" = "Agent" ] && [ -n "$SUBAGENT_TYPE" ]; then
-      EVENT_TYPE="agent.complete"
-      AGENT_NAME="$SUBAGENT_TYPE"
+    if [ "$TOOL_NAME" = "Agent" ]; then
+      # Recover subagent context from PreToolUse's stash if the post payload
+      # didn't carry subagent_type itself. The cache file lives in /tmp and
+      # is removed once consumed.
+      if [ -z "$SUBAGENT_TYPE" ] && [ -n "$PENDING_AGENT_FILE" ] && [ -f "$PENDING_AGENT_FILE" ]; then
+        CACHED_TYPE="$(jq -r '.subagent_type // empty' "$PENDING_AGENT_FILE" 2>/dev/null)"
+        CACHED_DESC="$(jq -r '.description // empty' "$PENDING_AGENT_FILE" 2>/dev/null)"
+        CACHED_PROMPT="$(jq -r '.prompt // empty' "$PENDING_AGENT_FILE" 2>/dev/null)"
+        [ -n "$CACHED_TYPE" ] && SUBAGENT_TYPE="$CACHED_TYPE"
+        [ -z "$AGENT_DESC" ] && AGENT_DESC="$CACHED_DESC"
+        [ -z "$AGENT_PROMPT" ] && AGENT_PROMPT="$CACHED_PROMPT"
+      fi
+      if [ -n "$SUBAGENT_TYPE" ]; then
+        EVENT_TYPE="agent.complete"
+        AGENT_NAME="$SUBAGENT_TYPE"
+      else
+        # Last-resort identifier so the agent at least lands in the panel
+        # under a stable, traceable label instead of being silently demoted
+        # to a generic tool.use.
+        EVENT_TYPE="agent.complete"
+        if [ -n "$TOOL_USE_ID" ]; then
+          AGENT_NAME="agent-${TOOL_USE_ID:0:8}"
+        else
+          AGENT_NAME="agent-unknown"
+        fi
+      fi
+      # Consume the cache regardless of whether we used it.
+      [ -n "$PENDING_AGENT_FILE" ] && [ -f "$PENDING_AGENT_FILE" ] && rm -f "$PENDING_AGENT_FILE" 2>/dev/null
     else
       EVENT_TYPE="tool.use"
     fi
