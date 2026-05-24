@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useHud, useHudHydrated } from './HudProvider';
+import { useAgentDetailSheet } from './AgentDetailSheet';
+import { usePinnedAgents } from '@/lib/pins';
 import type { HudAgent, HudAgentStatus } from '@/lib/store';
 import { relativeTime, truncate } from '@/lib/format';
 
 // Built-in agent name → dot color. Used when the agent definition does not
-// surface its own `color` to the HUD (today nothing does; reserved for a
-// future hook-side frontmatter parser). Falls back to the status color below
+// surface its own `color` to the HUD. Falls back to the status color below
 // for any agent name not listed here.
 const BUILTIN_COLORS: Record<string, string> = {
   Explore: '#7dd3fc',          // sky-300
@@ -57,7 +58,60 @@ function formatDuration(ms: number): string {
   return rs === 0 ? `${m}m` : `${m}m${rs}s`;
 }
 
-function AgentCard({ agent, now, hydrated }: { agent: HudAgent; now: number; hydrated: boolean }) {
+function PinButton({
+  pinned,
+  onToggle,
+  agentName,
+}: {
+  pinned: boolean;
+  onToggle: () => void;
+  agentName: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      aria-label={pinned ? `Unpin ${agentName}` : `Pin ${agentName}`}
+      title={pinned ? 'Unpin' : 'Pin'}
+      className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[color:var(--color-hud-fg-muted)] hover:text-[color:var(--color-hud-fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
+      style={pinned ? { color: 'var(--color-hud-accent)' } : undefined}
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill={pinned ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        {/* Pushpin */}
+        <path d="M12 17v5" />
+        <path d="M5 17h14l-2-5V5H7v7l-2 5Z" />
+      </svg>
+    </button>
+  );
+}
+
+function AgentCard({
+  agent,
+  now,
+  hydrated,
+  pinned,
+  onPinToggle,
+}: {
+  agent: HudAgent;
+  now: number;
+  hydrated: boolean;
+  pinned: boolean;
+  onPinToggle: () => void;
+}) {
+  const { show } = useAgentDetailSheet();
   const dot = colorFor(agent);
   const statusColor = STATUS_COLOR[agent.status];
   const elapsedMs =
@@ -66,19 +120,24 @@ function AgentCard({ agent, now, hydrated }: { agent: HudAgent; now: number; hyd
       : agent.durationMs ?? Math.max(0, (agent.endedAt ?? agent.startedAt) - agent.startedAt);
 
   return (
-    <motion.div
+    <motion.button
+      type="button"
       key={agent.name}
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.18 }}
-      className="hud-card flex items-start gap-3 p-4"
+      onClick={() => show(agent.name)}
+      data-no-swipe="true"
+      aria-label={`Open details for ${agent.name}`}
+      className="hud-card flex w-full items-start gap-3 p-4 text-left transition-colors hover:border-[color:color-mix(in_srgb,var(--color-hud-accent)_30%,var(--color-hud-card-border))] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
       style={{
         borderColor:
           agent.status === 'working'
             ? `color-mix(in srgb, ${dot} 38%, var(--color-hud-card-border))`
             : 'var(--color-hud-card-border)',
+        cursor: 'pointer',
       }}
     >
       <span
@@ -92,7 +151,9 @@ function AgentCard({ agent, now, hydrated }: { agent: HudAgent; now: number; hyd
           borderRadius: 999,
           background: dot,
           boxShadow:
-            agent.status === 'working' ? `0 0 10px ${dot}` : `0 0 4px color-mix(in srgb, ${dot} 50%, transparent)`,
+            agent.status === 'working'
+              ? `0 0 10px ${dot}`
+              : `0 0 4px color-mix(in srgb, ${dot} 50%, transparent)`,
           flex: 'none',
         }}
       />
@@ -132,7 +193,8 @@ function AgentCard({ agent, now, hydrated }: { agent: HudAgent; now: number; hyd
           </span>
         </div>
       </div>
-    </motion.div>
+      <PinButton pinned={pinned} onToggle={onPinToggle} agentName={agent.name} />
+    </motion.button>
   );
 }
 
@@ -141,10 +203,25 @@ export function AgentsDashboard() {
   const claudeCodeVersion = useHud((s) => s.claudeCodeVersion);
   const defaultModel = useHud((s) => s.defaultModel);
   const hydrated = useHudHydrated();
+  const { isPinned, toggle } = usePinnedAgents();
   const [now, setNow] = useState(() => Date.now());
 
-  const agents = useMemo(() => sortAgents(Object.values(agentsMap)), [agentsMap]);
-  const hasWorking = agents.some((a) => a.status === 'working');
+  const sorted = useMemo(() => sortAgents(Object.values(agentsMap)), [agentsMap]);
+  const hasWorking = sorted.some((a) => a.status === 'working');
+
+  // Partition by pin only after client hydration — pre-hydration the pin set
+  // is empty so SSR/CSR match exactly. Server always renders everything under
+  // a single grid (no Pinned section).
+  const { pinned, recent } = useMemo(() => {
+    if (!hydrated) return { pinned: [] as HudAgent[], recent: sorted };
+    const p: HudAgent[] = [];
+    const r: HudAgent[] = [];
+    for (const a of sorted) {
+      if (isPinned(a.name)) p.push(a);
+      else r.push(a);
+    }
+    return { pinned: p, recent: r };
+  }, [sorted, isPinned, hydrated]);
 
   useEffect(() => {
     if (!hasWorking) return;
@@ -167,19 +244,58 @@ export function AgentsDashboard() {
         )}
       </div>
 
-      <div className="mt-4">
-        {agents.length === 0 ? (
-          <p className="hud-fg-muted text-sm">No agents invoked yet</p>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <AnimatePresence initial={false}>
-              {agents.map((a) => (
-                <AgentCard key={a.name} agent={a} now={now} hydrated={hydrated} />
-              ))}
-            </AnimatePresence>
-          </div>
-        )}
-      </div>
+      {sorted.length === 0 ? (
+        <p className="hud-fg-muted mt-4 text-sm">No agents invoked yet</p>
+      ) : (
+        <div className="mt-4 space-y-4">
+          {pinned.length > 0 && (
+            <section>
+              <p className="hud-fg-muted text-[10px] uppercase tracking-wider">
+                Pinned
+              </p>
+              <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <AnimatePresence initial={false}>
+                  {pinned.map((a) => (
+                    <AgentCard
+                      key={a.name}
+                      agent={a}
+                      now={now}
+                      hydrated={hydrated}
+                      pinned
+                      onPinToggle={() => toggle(a.name)}
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+            </section>
+          )}
+          {recent.length > 0 && (
+            <section>
+              {pinned.length > 0 && (
+                <p className="hud-fg-muted text-[10px] uppercase tracking-wider">
+                  Recent
+                </p>
+              )}
+              <div
+                className={`grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 ${pinned.length > 0 ? 'mt-2' : ''}`}
+              >
+                <AnimatePresence initial={false}>
+                  {recent.map((a) => (
+                    <AgentCard
+                      key={a.name}
+                      agent={a}
+                      now={now}
+                      hydrated={hydrated}
+                      pinned={false}
+                      onPinToggle={() => toggle(a.name)}
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+            </section>
+          )}
+        </div>
+      )}
     </div>
   );
 }

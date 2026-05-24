@@ -87,9 +87,8 @@ if [ -z "$HOOK_NAME" ]; then
 fi
 [ -n "$HOOK_NAME" ] || bail unknown missing_hook_name
 
-# Pre-extract identifiers we need to discriminate PostToolUse(Agent) from
-# generic tool calls, and to pair SubagentStop with the matching agent name.
-SID="$(printf '%s' "$PAYLOAD" | jq -r '.session_id // .sessionId // empty')"
+# Pre-extract identifiers we need to discriminate Pre/PostToolUse(Agent) from
+# generic tool calls and to populate the agent.invoke / agent.complete events.
 TOOL_NAME="$(printf '%s' "$PAYLOAD" | jq -r '.tool_name // .tool // empty')"
 SUBAGENT_TYPE="$(printf '%s' "$PAYLOAD" | jq -r '
   ((.tool_input // .toolInput) // {})
@@ -99,12 +98,10 @@ AGENT_DESC="$(printf '%s' "$PAYLOAD" | jq -r '
   ((.tool_input // .toolInput) // {})
   | (.description // empty)
 ')"
-
-# Side-state to remember the agent invoked between PostToolUse(Agent) and the
-# matching SubagentStop. One file per session, cleared on session.start and
-# after the agent completes.
-AGENT_STATE_DIR="${TMPDIR:-/tmp}/livo-hud-agents"
-mkdir -p "$AGENT_STATE_DIR" 2>/dev/null || true
+AGENT_PROMPT="$(printf '%s' "$PAYLOAD" | jq -r '
+  ((.tool_input // .toolInput) // {})
+  | (.prompt // empty)
+')"
 
 AGENT_NAME=""
 CC_VERSION=""
@@ -122,26 +119,32 @@ case "$HOOK_NAME" in
     if [ -f "$HOME/.claude/settings.json" ]; then
       CC_DEFAULT_MODEL="$(jq -r '.model // empty' "$HOME/.claude/settings.json" 2>/dev/null)"
     fi
-    # Reset any stale subagent state from a previous session with this ID.
-    [ -n "$SID" ] && rm -f "$AGENT_STATE_DIR/$SID" 2>/dev/null || true
     ;;
   SessionEnd)
     EVENT_TYPE="session.end"
-    [ -n "$SID" ] && rm -f "$AGENT_STATE_DIR/$SID" 2>/dev/null || true
     ;;
   UserPromptSubmit)
     EVENT_TYPE="prompt.submit"
     ;;
-  PostToolUse)
-    # Claude Code's `Agent` tool is the subagent dispatcher. Emit a dedicated
-    # `agent.invoke` event so the HUD can populate the agents dashboard; all
-    # other tools still surface as `tool.use`.
+  PreToolUse)
+    # PreToolUse fires BEFORE the tool runs. We surface it only for the
+    # `Agent` subagent dispatcher so the dashboard can show the agent in a
+    # working state while it is actually working (PostToolUse only fires after
+    # the subagent has already finished). All other Pre events are silenced.
     if [ "$TOOL_NAME" = "Agent" ] && [ -n "$SUBAGENT_TYPE" ]; then
       EVENT_TYPE="agent.invoke"
       AGENT_NAME="$SUBAGENT_TYPE"
-      if [ -n "$SID" ]; then
-        printf '%s' "$SUBAGENT_TYPE" >"$AGENT_STATE_DIR/$SID" 2>/dev/null || true
-      fi
+    else
+      bail "$HOOK_NAME" pretooluse_unmapped
+    fi
+    ;;
+  PostToolUse)
+    # PostToolUse for `Agent` marks subagent completion (and carries the
+    # duration). All other tools still surface as `tool.use`. The duration is
+    # read by the jq pipeline below from $p.duration_ms.
+    if [ "$TOOL_NAME" = "Agent" ] && [ -n "$SUBAGENT_TYPE" ]; then
+      EVENT_TYPE="agent.complete"
+      AGENT_NAME="$SUBAGENT_TYPE"
     else
       EVENT_TYPE="tool.use"
     fi
@@ -150,21 +153,16 @@ case "$HOOK_NAME" in
     EVENT_TYPE="turn.stop"
     ;;
   SubagentStop)
-    EVENT_TYPE="agent.complete"
-    if [ -n "$SID" ] && [ -f "$AGENT_STATE_DIR/$SID" ]; then
-      AGENT_NAME="$(cat "$AGENT_STATE_DIR/$SID" 2>/dev/null || true)"
-      rm -f "$AGENT_STATE_DIR/$SID" 2>/dev/null || true
-    fi
-    [ -n "$AGENT_NAME" ] || AGENT_NAME="unknown"
+    # The Agent tool's lifecycle is fully captured by Pre/PostToolUse above.
+    # SubagentStop arrives between them but adds no information the dashboard
+    # needs, so we drop it instead of double-emitting agent.complete.
+    bail "$HOOK_NAME" subagentstop_unmapped
     ;;
   PreCompact)
     EVENT_TYPE="compact.start"
     ;;
   Notification)
     bail "$HOOK_NAME" notification_unmapped
-    ;;
-  PreToolUse)
-    bail "$HOOK_NAME" pretooluse_unmapped
     ;;
   *)
     bail "$HOOK_NAME" unsupported_hook
@@ -183,6 +181,7 @@ EVENT_JSON="$(printf '%s' "$PAYLOAD" | jq -c \
   --argjson now "$NOW_MS" \
   --arg agentName "$AGENT_NAME" \
   --arg agentDescription "$AGENT_DESC" \
+  --arg agentPrompt "$AGENT_PROMPT" \
   --arg claudeCodeVersion "$CC_VERSION" \
   --arg defaultModel "$CC_DEFAULT_MODEL" '
   def num(x): if (x|type) == "number" then x else null end;
@@ -222,6 +221,7 @@ EVENT_JSON="$(printf '%s' "$PAYLOAD" | jq -c \
       durationMs: $duration,
       agentName: strArg($agentName),
       agentDescription: strArg($agentDescription),
+      prompt: strArg($agentPrompt),
       claudeCodeVersion: strArg($claudeCodeVersion),
       defaultModel: strArg($defaultModel)
     }
@@ -233,7 +233,7 @@ EVENT_JSON="$(printf '%s' "$PAYLOAD" | jq -c \
     elif $type == "tool.use"       then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","tool","toolInput","durationMs"]              | index($k)))
     elif $type == "turn.stop"      then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","tokens","costUsd","contextPct","durationMs"] | index($k)))
     elif $type == "compact.start"  then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model"]                                              | index($k)))
-    elif $type == "agent.invoke"   then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","agentName","agentDescription"]               | index($k)))
+    elif $type == "agent.invoke"   then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","agentName","agentDescription","prompt"]       | index($k)))
     elif $type == "agent.complete" then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","agentName","tokens","costUsd","durationMs"]  | index($k)))
     else . end
   | # tool.use requires a tool field — fall back to "unknown" if hook omitted it.
