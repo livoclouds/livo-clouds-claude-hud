@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | **Severity** | Critical |
-| **Status** | ⏳ Pending |
-| **PR** | — |
+| **Status** | ✅ Completed |
+| **PR** | Local changes pending PR |
 | **Estimated effort** | 5 hours |
 | **Risk of regression** | Low (additive changes, no existing behaviour modified) |
 
@@ -55,20 +55,61 @@ surface is small.
 - A stale `/tmp/hud-pending-agent-XYZ.json` older than 60 minutes is
   removed by the next hook invocation.
 
-## Before / after metrics
+## What was done
 
-Filled in when this phase merges.
+All seven sub-tasks implemented in a single pass:
+
+1. **C1 — Contract array cap** (`packages/contracts/src/event.ts`): added
+   `.max(1000)` to `SessionsSnapshot.sessions`. A snapshot with 1001+ entries
+   now fails Zod validation and returns HTTP 400.
+
+2. **C1 — Content-Length guard** (`apps/hud/app/api/events/route.ts`): inserted
+   a check for `Content-Length > 65 536` (64 KB) after bearer auth and before
+   `req.json()`. Oversized requests return HTTP 413 `{ error: "payload_too_large" }`,
+   consistent with existing error-response style.
+
+3. **C1 — Next.js body limit** (`apps/hud/next.config.mjs`): added
+   `serverActions: { bodySizeLimit: '64kb' }` as defense in depth for any
+   future server-action paths.
+
+4. **C5 — JSONL log rotation** (`apps/hud/lib/log.ts`): added
+   `HUD_LOG_MAX_SIZE_MB` env var (default 100 MB). After each write,
+   `handle.stat().size` is checked; when the limit is reached the log is
+   rotated to `.1` / `.2` / `.3` generations and a fresh file is opened.
+
+5. **C5 — Hook log rotation** (`hooks/claude-hook.sh`): added `rotate_log()`
+   helper (10 MB threshold, 3 rotated generations). Called once per hook
+   invocation, after config is loaded.
+
+6. **C5 — Hook log rotation** (`hooks/sessions-poller.sh`,
+   `hooks/transcript-poller.sh`): same `rotate_log()` function added and called
+   at the top of the main `while true; do` loop in each daemon.
+
+7. **H8 — Pending-agent TTL cleanup** (`hooks/claude-hook.sh`): added
+   `find "${PENDING_AGENT_DIR%/}" -maxdepth 1 -name 'hud-pending-agent-*' -mmin +60 -delete`
+   immediately after `PENDING_AGENT_FILE` is set, before the `case` dispatch.
+   Runs on every hook invocation; silent on errors.
+
+## Before / after metrics
 
 | Metric | Before | After | Target |
 |---|---|---|---|
 | Max single ingest payload accepted | unbounded | 64 KB | ≤ 64 KB |
-| `hud-hook.log` size after 1 week | unbounded | ≤ 30 MB (3 × 10) | ≤ 30 MB |
-| JSONL log size per day | up to 172 MB | ≤ 100 MB per file (rotated) | ≤ 100 MB |
+| `sessions.snapshot` accepted sessions | unbounded | 1 000 max | ≤ 1 000 |
+| `hud-hook.log` size ceiling | unbounded | ≤ 30 MB (3 × 10 MB) | ≤ 30 MB |
+| JSONL log size per file | unbounded | ≤ 100 MB (env-tunable) | ≤ 100 MB |
+| Stale `/tmp/hud-pending-agent-*` age | unlimited | ≤ 60 min | ≤ 60 min |
 
 ## Status updates
 
 - **2026-05-24** — Phase scoped, awaiting implementation.
+- **2026-05-24** — Implemented. All findings addressed. Local changes pending PR.
 
 ## What was deferred
 
-(filled in if any item in scope is split out)
+- **Rate limiting** on `POST /api/events`: no existing local pattern in the
+  codebase; deferred to avoid scope creep. Documented in audit README.
+- **Chunked-transfer-encoding payloads without `Content-Length`**: the
+  Content-Length guard is bypassed for these (guard only fires when header is
+  present). `serverActions.bodySizeLimit` provides defense in depth for
+  server-action paths. Acceptable for v1 LAN deployment.

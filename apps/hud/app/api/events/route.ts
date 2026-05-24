@@ -44,6 +44,14 @@ export async function POST(req: Request): Promise<Response> {
     return jsonResponse(401, { error: 'unauthorized' });
   }
 
+  const rawLen = req.headers.get('content-length');
+  if (rawLen !== null) {
+    const len = parseInt(rawLen, 10);
+    if (!Number.isFinite(len) || len > 65536) {
+      return jsonResponse(413, { error: 'payload_too_large' });
+    }
+  }
+
   let body: unknown;
   try {
     body = await req.json();

@@ -225,6 +225,9 @@
         padding: 20px 22px;
         box-shadow: var(--shadow);
       }
+      .phase[data-phase-status='completed'] {
+        border-color: var(--status-completed);
+      }
       .phase-head {
         display: flex;
         align-items: flex-start;
@@ -475,7 +478,7 @@
       <section>
         <h2>Phases</h2>
         <ol class="phase-list">
-          <li class="phase" data-phase-progress="0" data-phase-status="pending" data-finding-count="3">
+          <li class="phase" data-phase-progress="100" data-phase-status="completed" data-finding-count="3">
             <div class="phase-head">
               <div style="flex: 1; min-width: 240px">
                 <div class="phase-num">Phase 1</div>
@@ -483,13 +486,21 @@
               </div>
               <div class="phase-meta">
                 <span class="badge critical">Critical</span>
-                <span class="status" data-status="pending">Pending</span>
+                <span class="status" data-status="completed">Completed</span>
               </div>
             </div>
             <p class="phase-detail">
               Body-size cap on the ingest endpoint, size-based log rotation, and
               TTL cleanup for orphaned subagent stash files. Additive changes,
               no regression risk.
+              Implemented 2026-05-24: 64 KB Content-Length guard on
+              <code>POST /api/events</code> (HTTP 413),
+              <code>sessions.snapshot</code> array capped at 1000 entries (HTTP 400),
+              <code>serverActions.bodySizeLimit=64kb</code>,
+              size-based JSONL rotation (<code>HUD_LOG_MAX_SIZE_MB</code>, default 100 MB,
+              3 generations), hook log rotation (10 MB, 3 generations across all three
+              hook scripts), and 60-minute TTL cleanup for
+              <code>/tmp/hud-pending-agent-*</code> files.
             </p>
             <div class="findings-list">
               <span class="finding-chip">C1</span>
@@ -497,12 +508,12 @@
               <span class="finding-chip">H8</span>
             </div>
             <div class="phase-progress">
-              <div class="bar-track"><div class="bar-fill" style="width: 0%"></div></div>
-              <div class="phase-pct">0%</div>
+              <div class="bar-track"><div class="bar-fill" style="width: 100%"></div></div>
+              <div class="phase-pct">100%</div>
             </div>
             <div class="phase-actions">
               <a href="./phases/phase-1-security-and-disk.md">Phase notes →</a>
-              <span style="color: var(--fg-mute)">No PR yet</span>
+              <span style="color: var(--fg-mute)">Local changes pending PR</span>
             </div>
           </li>
 
@@ -690,7 +701,7 @@
         <code>blocked</code>, and replace the "No PR yet" span with a link.
         The script at the bottom recomputes everything on load.
         <br /><br />
-        Last regenerated: <span id="lastUpdated">2026-05-24</span>.
+        Last regenerated: <span id="lastUpdated">2026-05-24 (Phase 1 completed)</span>.
       </footer>
     </div>
 
