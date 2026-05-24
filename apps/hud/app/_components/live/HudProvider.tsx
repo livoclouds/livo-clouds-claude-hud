@@ -13,10 +13,18 @@ import { useStore } from 'zustand';
 import { createHudStore, type HudState, type HudStoreApi } from '@/lib/store';
 import { useEventStream, type SseStatus } from '@/lib/sse-client';
 
+// ─── Contexts ────────────────────────────────────────────────────────────────
+
 const HudStoreContext = createContext<HudStoreApi | null>(null);
 const SseStatusContext = createContext<SseStatus>('connecting');
+const HudHydrationContext = createContext<boolean>(false);
 
-export function HudProvider({
+// ─── HudStoreProvider ─────────────────────────────────────────────────────────
+// Outer layer: stable forever. Creates the Zustand store once and never
+// re-renders again, so consumers that only read store state are insulated from
+// SSE reconnect churn.
+
+function HudStoreProvider({
   initial,
   children,
 }: {
@@ -27,7 +35,20 @@ export function HudProvider({
   if (storeRef.current === null) {
     storeRef.current = createHudStore(initial);
   }
-  const store = storeRef.current;
+  return (
+    <HudStoreContext.Provider value={storeRef.current}>
+      {children}
+    </HudStoreContext.Provider>
+  );
+}
+
+// ─── HudConnectionProvider ───────────────────────────────────────────────────
+// Inner layer: manages SSE connection state and hydration flag. Re-renders on
+// reconnect, but HudStoreProvider above it does not, so pure store consumers
+// are unaffected.
+
+function HudConnectionProvider({ children }: { children: ReactNode }) {
+  const store = useHudStoreApi();
 
   const [sseStatus, setSseStatus] = useState<SseStatus>('connecting');
   const onStatusChange = useCallback((s: SseStatus) => setSseStatus(s), []);
@@ -42,15 +63,30 @@ export function HudProvider({
   }, []);
 
   return (
-    <HudStoreContext.Provider value={store}>
-      <SseStatusContext.Provider value={sseStatus}>
-        <HudHydrationContext.Provider value={hydrated}>{children}</HudHydrationContext.Provider>
-      </SseStatusContext.Provider>
-    </HudStoreContext.Provider>
+    <SseStatusContext.Provider value={sseStatus}>
+      <HudHydrationContext.Provider value={hydrated}>{children}</HudHydrationContext.Provider>
+    </SseStatusContext.Provider>
   );
 }
 
-const HudHydrationContext = createContext<boolean>(false);
+// ─── Public provider ──────────────────────────────────────────────────────────
+// Thin composition wrapper that preserves the existing public API.
+
+export function HudProvider({
+  initial,
+  children,
+}: {
+  initial: HudState;
+  children: ReactNode;
+}) {
+  return (
+    <HudStoreProvider initial={initial}>
+      <HudConnectionProvider>{children}</HudConnectionProvider>
+    </HudStoreProvider>
+  );
+}
+
+// ─── Hooks ────────────────────────────────────────────────────────────────────
 
 export function useHudHydrated(): boolean {
   return useContext(HudHydrationContext);

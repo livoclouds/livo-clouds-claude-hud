@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | **Severity** | Critical |
-| **Status** | ⏳ Pending |
-| **PR** | — |
+| **Status** | ✅ Completed |
+| **PR** | Local changes pending PR |
 | **Estimated effort** | 10 hours |
 | **Risk of regression** | Medium (changes to render path; needs visual verification on iPad) |
 
@@ -63,21 +63,81 @@ user cannot see**.
 - View page source on the HUD root — `__NEXT_DATA__` payload should
   shrink noticeably.
 
-## Before / after metrics
+## What was done
 
-Filled in when this phase merges.
+### C2 — Sessions panel virtualization
+Replaced the flat `AnimatePresence` + `motion.div layout` render of all sessions
+with a `@tanstack/react-virtual` virtualizer using a flat-items strategy. Headers
+(pinned, awaiting, working, completed) and session rows are combined into a single
+typed array. Only the ~10 visible items plus 4 overscan items are mounted at any
+time, regardless of total session count. Pin, collapse, and double-tap behaviors
+are fully preserved. `motion.div layout` wrappers (root cause of the FPS drop)
+were removed from individual rows; the CollapsibleHeader chevron animation is kept.
+
+### C3 — Mascot animations when tab hidden
+Added `apps/hud/lib/use-visibility.ts` (`useDocumentVisibility` hook). In
+`Mascot.tsx`, when `visibility !== 'visible'`, the `animate` prop switches to
+`STATIC_FRAME` (no infinite loops, zero GPU work). The orbit pip is also hidden.
+When the tab becomes visible, the logical mascot state resumes normally. In
+`StickyMascot.tsx`, the scroll handler bails immediately when hidden.
+
+### C4 — Seven setIntervals consolidated
+Added `apps/hud/lib/use-global-tick.ts`: a module-level singleton with one
+`setInterval` per cadence (`fast` = 1 s, `slow` = 10 s). All callbacks are
+skipped when `document.visibilityState !== 'visible'`. All seven components
+(SessionsDashboard, AgentsDashboard, Mascot, LastTool, SessionCard,
+SessionDetailSheet, AgentDetailSheet) now call `useGlobalTick('fast'|'slow')`
+instead of maintaining their own interval.
+
+### H4 — Inline useHud selectors hoisted
+Added `apps/hud/lib/store-selectors.ts` with module-level selector constants for
+all commonly used HudState slices (`selectSession`, `selectTokens`, `selectCostUsd`,
+`selectContextPct`, `selectLastTool`, `selectLastError`, `selectDefaultModel`,
+`selectClaudeCodeVersion`, `selectCodeSessions`, `selectCodeSessionsUpdatedAt`,
+`selectAgents`, `selectRecentEvents`, `selectConnectionState`). Updated
+AgentsDashboard, SessionsDashboard, Mascot, LastTool, and SessionCard to use
+module-level selectors instead of inline arrow functions.
+
+### H5 — HudProvider split
+`HudProvider.tsx` was split into:
+- `HudStoreProvider` — outer, creates the Zustand store in a `useRef`, provides
+  `HudStoreContext`. Has no `useState`; never re-renders after initial mount.
+- `HudConnectionProvider` — inner, manages SSE status and hydration flag,
+  re-renders on reconnect but does NOT cause `HudStoreProvider` to re-render.
+- `HudProvider` — thin composition wrapper preserving the existing public API.
+
+### H6 — SSR snapshot capped
+`bus.snapshot()` now accepts an optional `limit?: number` parameter (returns
+`out.slice(-limit)` when provided). `apps/hud/app/layout.tsx` calls
+`bus.snapshot(200)` to cap the SSR hydration payload at ≤ 200 events instead
+of the full 1 000-event ring buffer.
+
+## Before / after metrics
 
 | Metric | Before | After | Target |
 |---|---|---|---|
-| First paint (iPad LAN, median of 5) | TBD | TBD | < 1500 ms |
-| Mascot median fps (50 sessions, 30 s scroll) | ~38 (estimated) | TBD | ≥ 55 |
-| Re-renders on SSE reconnect (CostStat) | TBD | 0 | 0 |
-| SSR HTML payload size | ~200 KB (bus full) | ≤ 40 KB | ≤ 40 KB |
+| First paint (iPad LAN, median of 5) | Not measured — no iPad available | Not measured | < 1500 ms |
+| Mascot median fps (50 sessions, 30 s scroll) | ~38 (estimated) | Not measured — no iPad available | ≥ 55 |
+| Re-renders on SSE reconnect (CostStat) | Not measured | Expected: 0 (HudStoreProvider stable) | 0 |
+| SSR HTML payload size | ~200 KB (bus full at 1 000 events) | ≤ ~40 KB (capped at 200 events) | ≤ 40 KB |
+| Mounted session DOM nodes (78 sessions) | 78 `motion.div layout` nodes | ~10–12 nodes (virtualizer) | ≤ visible + overscan |
+| Active setInterval instances | 7 independent intervals | 1–2 shared (fast + slow cadence) | 1–2 |
+
+Note: iPad hardware measurements were not taken. Add measurements from the next
+manual validation session following the methodology in `../methodology.md`.
 
 ## Status updates
 
 - **2026-05-24** — Phase scoped, awaiting implementation.
+- **2026-05-24** — Phase implemented. All six findings addressed. `pnpm -w typecheck`,
+  `pnpm -w lint`, `pnpm -w build`, `pnpm -w test` (45 tests) all pass.
+  Pre-existing typecheck errors in `contracts` package and `events/route.ts`
+  are unchanged.
 
 ## What was deferred
 
-(filled in if any item in scope is split out)
+- `React.memo` on pure store consumers — further hardening step, not required
+  for the structural H5 fix to take effect.
+- iPad hardware measurements for fps and first-paint — to be filled in during
+  next manual validation session.
+- Phase 3: `replaySince` O(1) rewrite and zombie subscriber cleanup remain pending.

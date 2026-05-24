@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   AnimatePresence,
   motion,
@@ -12,6 +12,9 @@ import { useHud } from '../live/HudProvider';
 import { deriveMascotState, type MascotState } from '@/lib/mascot/state';
 import type { HudEnvelope } from '@/lib/store';
 import { MascotGlyph } from './MascotGlyph';
+import { useDocumentVisibility } from '@/lib/use-visibility';
+import { useGlobalTick } from '@/lib/use-global-tick';
+import { selectRecentEvents } from '@/lib/store-selectors';
 
 const STATE_TINT: Record<MascotState, string> = {
   idle: 'text-[color:var(--color-hud-fg-soft)]',
@@ -124,12 +127,14 @@ export type MascotProps = {
 };
 
 export function Mascot({ overrideState = null, size }: MascotProps) {
-  const recentEvents = useHud((s) => s.recentEvents);
+  const recentEvents = useHud(selectRecentEvents);
   const reduced = useReducedMotion();
+  const visibility = useDocumentVisibility();
+  const isHidden = visibility !== 'visible';
   const state = useDerivedMascotState(recentEvents, overrideState);
   const label = STATE_LABEL[state];
 
-  const showOrbit = state === 'running' && !reduced;
+  const showOrbit = state === 'running' && !reduced && !isHidden;
 
   return (
     <div
@@ -142,7 +147,7 @@ export function Mascot({ overrideState = null, size }: MascotProps) {
         key={reduced ? 'reduced' : 'animated'}
         className={`relative ${STATE_TINT[state]}`}
         initial={false}
-        animate={reduced ? STATIC_FRAME : VARIANTS[state]}
+        animate={reduced || isHidden ? STATIC_FRAME : VARIANTS[state]}
         style={{ transformOrigin: '50% 50%' }}
       >
         <MascotGlyph size={size ?? 160} />
@@ -177,15 +182,9 @@ function useDerivedMascotState(
   recentEvents: ReadonlyArray<HudEnvelope>,
   overrideState: MascotState | null,
 ): MascotState {
-  // Tick once per second so the idle-timeout fallback fires without polling.
-  const [nowSec, setNowSec] = useState(() => Math.floor(Date.now() / 1000));
-  useEffect(() => {
-    if (overrideState !== null) return;
-    const id = setInterval(() => {
-      setNowSec(Math.floor(Date.now() / 1000));
-    }, 1000);
-    return () => clearInterval(id);
-  }, [overrideState]);
+  // Shared global tick replaces the per-component setInterval so the
+  // idle-timeout fallback fires without fragmented polling.
+  const nowSec = Math.floor(useGlobalTick('fast') / 1000);
 
   return useMemo(() => {
     if (overrideState !== null) return overrideState;

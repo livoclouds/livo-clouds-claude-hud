@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useHud, useHudHydrated } from './HudProvider';
 import { useAgentDetailSheet } from './AgentDetailSheet';
 import { usePinnedAgents } from '@/lib/pins';
 import type { HudAgent, HudAgentStatus } from '@/lib/store';
 import { relativeTime, truncate } from '@/lib/format';
+import { useGlobalTick } from '@/lib/use-global-tick';
+import { selectAgents, selectClaudeCodeVersion, selectDefaultModel } from '@/lib/store-selectors';
 
 // Built-in agent name → dot color. Used when the agent definition does not
 // surface its own `color` to the HUD. Falls back to the status color below
@@ -207,15 +209,14 @@ function AgentCard({
 }
 
 export function AgentsDashboard() {
-  const agentsMap = useHud((s) => s.agents);
-  const claudeCodeVersion = useHud((s) => s.claudeCodeVersion);
-  const defaultModel = useHud((s) => s.defaultModel);
+  const agentsMap = useHud(selectAgents);
+  const claudeCodeVersion = useHud(selectClaudeCodeVersion);
+  const defaultModel = useHud(selectDefaultModel);
   const hydrated = useHudHydrated();
   const { isPinned, toggle } = usePinnedAgents();
-  const [now, setNow] = useState(() => Date.now());
+  const now = useGlobalTick('fast');
 
   const sorted = useMemo(() => sortAgents(Object.values(agentsMap)), [agentsMap]);
-  const hasWorking = sorted.some((a) => a.status === 'working');
 
   // Partition by pin only after client hydration — pre-hydration the pin set
   // is empty so SSR/CSR match exactly. Server always renders everything under
@@ -230,12 +231,6 @@ export function AgentsDashboard() {
     }
     return { pinned: p, recent: r };
   }, [sorted, isPinned, hydrated]);
-
-  useEffect(() => {
-    if (!hasWorking) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [hasWorking]);
 
   const hasMeta = Boolean(claudeCodeVersion || defaultModel);
 

@@ -62,7 +62,7 @@ class EventBus {
     };
   }
 
-  snapshot(): BusEnvelope[] {
+  snapshot(limit?: number): BusEnvelope[] {
     if (this.count === 0) return [];
     const out: BusEnvelope[] = [];
     const start = this.count < this._capacity ? 0 : this.head;
@@ -70,7 +70,7 @@ class EventBus {
       const slot = this.ring[(start + i) % this._capacity];
       if (slot) out.push(slot);
     }
-    return out;
+    return limit !== undefined ? out.slice(-limit) : out;
   }
 
   replaySince(lastId: string | null): { envelopes: BusEnvelope[]; truncated: boolean } {

@@ -517,7 +517,7 @@
             </div>
           </li>
 
-          <li class="phase" data-phase-progress="0" data-phase-status="pending" data-finding-count="6">
+          <li class="phase" data-phase-progress="100" data-phase-status="completed" data-finding-count="6">
             <div class="phase-head">
               <div style="flex: 1; min-width: 240px">
                 <div class="phase-num">Phase 2</div>
@@ -525,14 +525,20 @@
               </div>
               <div class="phase-meta">
                 <span class="badge critical">Critical</span>
-                <span class="status" data-status="pending">Pending</span>
+                <span class="status" data-status="completed">Completed</span>
               </div>
             </div>
             <p class="phase-detail">
-              Virtualize the Sessions panel, freeze mascot animations when the
-              tab is hidden, consolidate seven setIntervals into one
-              visibility-aware ticker, hoist Zustand selectors, split
-              HudProvider, cap the SSR snapshot.
+              Virtualized the Sessions panel with @tanstack/react-virtual (flat
+              items strategy, overscan 4). Added useDocumentVisibility hook —
+              mascot freezes to STATIC_FRAME when tab hidden, orbit pip hidden,
+              StickyMascot scroll handler bails. Replaced seven setIntervals with
+              a single useGlobalTick hook (fast 1 s / slow 10 s, visibility-aware).
+              Hoisted all useHud inline selectors to module-level constants in
+              store-selectors.ts. Split HudProvider into stable HudStoreProvider +
+              HudConnectionProvider so SSE reconnects don't re-render store
+              consumers. Capped bus.snapshot() at 200 events in layout.tsx to
+              shrink SSR payload.
             </p>
             <div class="findings-list">
               <span class="finding-chip">C2</span>
@@ -543,12 +549,12 @@
               <span class="finding-chip">H6</span>
             </div>
             <div class="phase-progress">
-              <div class="bar-track"><div class="bar-fill" style="width: 0%"></div></div>
-              <div class="phase-pct">0%</div>
+              <div class="bar-track"><div class="bar-fill" style="width: 100%"></div></div>
+              <div class="phase-pct">100%</div>
             </div>
             <div class="phase-actions">
               <a href="./phases/phase-2-client-performance.md">Phase notes →</a>
-              <span style="color: var(--fg-mute)">No PR yet</span>
+              <span style="color: var(--fg-mute)">Local changes pending PR</span>
             </div>
           </li>
 

@@ -1,20 +1,15 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useHud, useHudHydrated } from './HudProvider';
 import { relativeTime, truncate } from '@/lib/format';
+import { useGlobalTick } from '@/lib/use-global-tick';
+import { selectLastTool } from '@/lib/store-selectors';
 
 export function LastTool() {
-  const lastTool = useHud((s) => s.lastTool);
+  const lastTool = useHud(selectLastTool);
   const hydrated = useHudHydrated();
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (!lastTool) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [lastTool]);
+  const now = useGlobalTick('fast');
 
   return (
     <div className="hud-card p-6">

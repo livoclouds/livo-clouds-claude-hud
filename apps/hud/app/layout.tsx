@@ -64,7 +64,7 @@ export const runtime = 'nodejs';
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   bootstrapSessionsSnapshot();
-  const initial = reduceAll(bus.snapshot());
+  const initial = reduceAll(bus.snapshot(200));
 
   return (
     <html lang="en" suppressHydrationWarning>
