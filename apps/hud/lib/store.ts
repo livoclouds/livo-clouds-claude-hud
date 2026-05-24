@@ -30,10 +30,25 @@ export type HudSession = {
 
 export type HudAgentStatus = 'working' | 'completed' | 'errored';
 
+// A tool that ran inside a subagent's execution window. Captured by tagging
+// every `tool.use` event with the `currentAgent` at the time the parent fired
+// its PreToolUse(Agent). The detail sheet renders this list so the user can
+// see exactly what the subagent did.
+export type HudAgentToolCall = {
+  name: string;
+  ts: number;
+  toolInput: Readonly<Record<string, unknown>> | null;
+  durationMs: number | null;
+};
+
+export const TOOL_CALLS_PER_AGENT_CAP = 100;
+
 export type HudAgent = {
   name: string;
   description: string | null;
   color: string | null;
+  // The prompt the parent passed to the subagent (from PreToolUse.tool_input).
+  prompt: string | null;
   status: HudAgentStatus;
   startedAt: number;
   endedAt: number | null;
@@ -41,6 +56,11 @@ export type HudAgent = {
   // How many times this agent name was invoked in the current session.
   // Used by the dashboard to show a `×N` badge.
   invocations: number;
+  // Last completion's error message, if present.
+  error: string | null;
+  // Tool calls captured during the latest invocation. Capped — oldest entries
+  // are dropped when the cap is exceeded.
+  toolCalls: ReadonlyArray<HudAgentToolCall>;
 };
 
 export type HudEnvelope = {
@@ -70,6 +90,10 @@ export type HudState = {
   // re-invoking the same agent updates the entry rather than creating a new one
   // (and bumps `invocations`).
   agents: Readonly<Record<string, HudAgent>>;
+  // Name of the agent currently in flight (set by agent.invoke, cleared by
+  // agent.complete). Used to tag inbound `tool.use` events so the detail sheet
+  // can show what the subagent did. Null when no subagent is running.
+  currentAgent: string | null;
   // Bounded ring of the most recent envelopes (oldest → newest). Consumed by
   // the mascot state derivation; capped so RSC snapshot hydration stays small.
   recentEvents: ReadonlyArray<HudEnvelope>;
@@ -91,6 +115,7 @@ export const EMPTY_STATE: HudState = {
   // mounts. The client will flip this on the first error/online/offline event.
   connectionState: 'connected',
   agents: {},
+  currentAgent: null,
   recentEvents: [],
 };
 
@@ -132,6 +157,7 @@ export function reduce(state: HudState, envelope: HudEnvelope): HudState {
       next.lastError = null;
       next.lastActivityAt = event.ts;
       next.agents = {};
+      next.currentAgent = null;
       next.recentEvents = [envelope];
       return next;
     }
@@ -166,6 +192,28 @@ export function reduce(state: HudState, envelope: HudEnvelope): HudState {
         durationMs: event.durationMs ?? null,
       };
       next.lastActivityAt = event.ts;
+
+      // While a subagent is in flight, attach this tool call to its history so
+      // the detail sheet can show exactly what the agent did. The Agent tool
+      // itself never reaches this branch (it is mapped to agent.invoke /
+      // agent.complete by the hook), so we don't need to filter it out here.
+      const owner = state.currentAgent;
+      if (owner && state.agents[owner]) {
+        const prior = state.agents[owner];
+        const nextCall: HudAgentToolCall = {
+          name: event.tool,
+          ts: event.ts,
+          toolInput: event.toolInput ?? null,
+          durationMs: event.durationMs ?? null,
+        };
+        const calls = prior.toolCalls.length >= TOOL_CALLS_PER_AGENT_CAP
+          ? [...prior.toolCalls.slice(prior.toolCalls.length - TOOL_CALLS_PER_AGENT_CAP + 1), nextCall]
+          : [...prior.toolCalls, nextCall];
+        next.agents = {
+          ...state.agents,
+          [owner]: { ...prior, toolCalls: calls },
+        };
+      }
       return next;
     }
 
@@ -201,13 +249,18 @@ export function reduce(state: HudState, envelope: HudEnvelope): HudState {
           name: event.agentName,
           description: event.agentDescription ?? prior?.description ?? null,
           color: event.agentColor ?? prior?.color ?? null,
+          prompt: event.prompt ?? prior?.prompt ?? null,
           status: 'working',
           startedAt: event.ts,
           endedAt: null,
           durationMs: null,
           invocations: (prior?.invocations ?? 0) + 1,
+          error: null,
+          // Reset on every new invocation so the sheet only shows the latest run.
+          toolCalls: [],
         },
       };
+      next.currentAgent = event.agentName;
       next.lastActivityAt = event.ts;
       return next;
     }
@@ -221,13 +274,22 @@ export function reduce(state: HudState, envelope: HudEnvelope): HudState {
           name: event.agentName,
           description: prior?.description ?? null,
           color: prior?.color ?? null,
+          prompt: prior?.prompt ?? null,
           status: event.error ? 'errored' : 'completed',
           startedAt,
           endedAt: event.ts,
           durationMs: event.durationMs ?? Math.max(0, event.ts - startedAt),
           invocations: prior?.invocations ?? 1,
+          error: event.error ?? null,
+          toolCalls: prior?.toolCalls ?? [],
         },
       };
+      // Only clear currentAgent if this completion is for the agent currently
+      // in flight — a stray complete for a different agent shouldn't drop us
+      // out of tracking mode for an unrelated subagent still running.
+      if (state.currentAgent === event.agentName) {
+        next.currentAgent = null;
+      }
       // Subagents consume tokens from the same budget — keep the session totals
       // up to date like turn.stop does.
       if (event.tokens) {

@@ -122,6 +122,9 @@ const AgentInvoke = z
     // the hook script does not parse frontmatter today; the HUD falls back to
     // a built-in color map and then to status colors.
     agentColor: z.string().min(1).optional(),
+    // The prompt the parent passed to the subagent. Captured from
+    // PreToolUse(Agent).tool_input.prompt so the detail sheet can show it.
+    prompt: z.string().min(1).optional(),
   })
   .strict();
 

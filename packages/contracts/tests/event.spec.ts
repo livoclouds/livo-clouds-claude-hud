@@ -183,6 +183,16 @@ describe('HudEventSchema — optional fields', () => {
       expect(result.data.error).toBe('agent crashed');
     }
   });
+
+  it('agent.invoke carries the parent prompt', () => {
+    const result = HudEventSchema.safeParse(agentInvoke);
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === 'agent.invoke') {
+      expect(result.data.prompt).toBeDefined();
+      expect(typeof result.data.prompt).toBe('string');
+      expect(result.data.prompt!.length).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe('HudEventSchema — type inference', () => {
