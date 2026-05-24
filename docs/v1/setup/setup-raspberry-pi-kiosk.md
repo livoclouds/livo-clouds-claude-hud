@@ -81,7 +81,7 @@ sudo apt-get upgrade -y
 ### 4. Verify the HUD URL loads
 
 From the Pi desktop, open Chromium and navigate to the HUD URL — e.g.
-`http://hud.local:3000/` or `http://192.168.1.20:3000/`. Confirm the live view
+`http://hud.local:4000/` or `http://192.168.1.20:4000/`. Confirm the live view
 renders and the mascot is animating. If the page does not load, fix LAN
 reachability before installing the kiosk service.
 
@@ -122,7 +122,7 @@ nano ~/.config/livo-clouds-hud-kiosk.env
 Set:
 
 ```sh
-HUD_URL=http://hud.local:3000/
+HUD_URL=http://hud.local:4000/
 # Optional. Leave empty for landscape. Valid: normal, left, right, inverted.
 ROTATE=
 ```

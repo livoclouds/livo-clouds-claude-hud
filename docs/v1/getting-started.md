@@ -30,7 +30,7 @@ Code runs there too, and you view the HUD in any browser on the same machine.
 3. Generate the ingest token and start the HUD:
    ```bash
    pnpm hud:token
-   pnpm dev                              # http://localhost:3000
+   pnpm dev                              # http://localhost:4000
    ```
 4. Wire Claude Code's hooks into the HUD. Detailed walkthrough:
    [`setup/setup-hook.md`](./setup/setup-hook.md). The short version is:
@@ -40,7 +40,7 @@ Code runs there too, and you view the HUD in any browser on the same machine.
 5. Run Claude Code in any project. Watch the HUD update in real time
    (target: < 500 ms per event).
 
-**Verify it works.** Open `http://localhost:3000/`, then run Claude Code.
+**Verify it works.** Open `http://localhost:4000/`, then run Claude Code.
 Tokens, cost, model, last tool, and the mascot should update without any page
 refresh. If they don't, the hook is not POSTing — see
 [`setup/setup-hook.md`](./setup/setup-hook.md#troubleshooting).
@@ -55,7 +55,7 @@ only loads the public HUD URL.
 
 1. **Complete persona A first.** The iPad needs a HUD to point at.
 2. Follow [`setup/setup-ipad.md`](./setup/setup-ipad.md). Short version:
-   - Open `http://<your-mac>.local:3000/` in iPad Safari.
+   - Open `http://<your-mac>.local:4000/` in iPad Safari.
    - **Share → Add to Home Screen**.
    - **Settings → Display & Brightness → Auto-Lock → Never**.
    - Optionally **Settings → Accessibility → Guided Access → On** to pin the

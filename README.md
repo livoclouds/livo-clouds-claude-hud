@@ -120,8 +120,9 @@ pnpm install
 # 2. Generate the ingest token (writes apps/hud/.env.local, gitignored)
 pnpm hud:token
 
-# 3. Start the HUD
-pnpm dev                                # http://localhost:3000
+# 3. Start the HUD (pick a free port via the HUD_PORT env var; defaults to 4000)
+pnpm dev                                # http://localhost:4000
+# HUD_PORT=5000 pnpm dev                # if port 4000 is already in use
 
 # 4. In a second terminal — wire Claude Code's hooks into the HUD
 pnpm hud:install-hook                   # idempotent merge into ~/.claude/settings.json
@@ -140,7 +141,7 @@ machine or any of the supported sinks below. Each guide is self-contained.
 
 | Target                                       | Guide                                                                                      |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| **Browser** on the dev machine               | Just open `http://localhost:3000/`.                                                        |
+| **Browser** on the dev machine               | Just open `http://localhost:4000/`.                                                        |
 | **iPad** PWA kiosk                           | [`docs/v1/setup/setup-ipad.md`](./docs/v1/setup/setup-ipad.md)                             |
 | **Raspberry Pi 5** Chromium kiosk _(opt-in)_ | [`docs/v1/setup/setup-raspberry-pi-kiosk.md`](./docs/v1/setup/setup-raspberry-pi-kiosk.md) |
 | Claude Code → HUD **hook wiring**            | [`docs/v1/setup/setup-hook.md`](./docs/v1/setup/setup-hook.md)                             |
@@ -192,7 +193,7 @@ Workspaces managed via **pnpm**. TypeScript `strict: true` throughout.
 
 | Command                   | What it does                                                                 |
 | ------------------------- | ---------------------------------------------------------------------------- |
-| `pnpm dev`                | Run the HUD locally on `http://localhost:3000`.                              |
+| `pnpm dev`                | Run the HUD locally on `http://localhost:4000`.                              |
 | `pnpm build`              | Build all workspace packages.                                                |
 | `pnpm lint`               | ESLint flat config across the workspace.                                     |
 | `pnpm typecheck`          | `tsc --noEmit` across the workspace.                                         |

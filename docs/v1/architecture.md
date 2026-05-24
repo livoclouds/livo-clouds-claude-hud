@@ -131,8 +131,8 @@ reconnects automatically.
 
 ## Network model
 
-- The HUD binds to `0.0.0.0:3000` by default on the developer machine.
-- Clients on the same LAN reach it via `http://<host>.local:3000`.
+- The HUD binds to `0.0.0.0:4000` by default on the developer machine.
+- Clients on the same LAN reach it via `http://<host>.local:4000`.
 - Off-LAN access is documented through **Tailscale** — no public ingress
   endpoint is exposed.
 

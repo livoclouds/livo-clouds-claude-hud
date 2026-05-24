@@ -19,8 +19,8 @@ becomes a single-purpose display.
   via [Tailscale](https://tailscale.com). See the repo root
   [`README`](../../../README.md) for `pnpm dev` startup.
 - The HUD URL reachable from the iPad's browser. On the dev machine,
-  `pnpm dev` binds to `0.0.0.0:3000` — confirm the LAN address with
-  `ipconfig getifaddr en0` (macOS) and load `http://<lan-ip>:3000/` in
+  `pnpm dev` binds to `0.0.0.0:4000` — confirm the LAN address with
+  `ipconfig getifaddr en0` (macOS) and load `http://<lan-ip>:4000/` in
   iPad Safari.
 
 ---
@@ -31,10 +31,10 @@ becomes a single-purpose display.
 
 Choose one transport and verify the HUD loads in Safari before continuing.
 
-- **LAN** — open `http://<dev-machine-lan-ip>:3000/`. Fastest path; works
+- **LAN** — open `http://<dev-machine-lan-ip>:4000/`. Fastest path; works
   on the home network.
 - **Tailscale** — install Tailscale on both the dev machine and the iPad,
-  log in to the same tailnet, then load `http://<machine>.<tailnet>.ts.net:3000/`.
+  log in to the same tailnet, then load `http://<machine>.<tailnet>.ts.net:4000/`.
   Works off-network and survives IP changes.
 
 Confirm the live view renders and that the mascot is animating. If it is
