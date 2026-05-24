@@ -123,6 +123,8 @@ pnpm hud:token
 # 3. Start the HUD (pick a free port via the HUD_PORT env var; defaults to 4000)
 pnpm dev                                # http://localhost:4000
 # HUD_PORT=5000 pnpm dev                # if port 4000 is already in use
+# The sessions poller (sidecar that feeds the Sessions panel) starts
+# automatically alongside the dev server. To opt out: HUD_DISABLE_POLLER=1 pnpm dev
 
 # 4. In a second terminal — wire Claude Code's hooks into the HUD
 pnpm hud:install-hook                   # idempotent merge into ~/.claude/settings.json
@@ -175,7 +177,10 @@ livo-clouds-claude-hud/
 ├── packages/
 │   └── contracts/                    # @livoclouds/contracts — shared Zod schemas
 ├── hooks/
-│   └── claude-hook.sh                # Drop-in bash hook for ~/.claude/settings.json
+│   ├── claude-hook.sh                # Drop-in bash hook for ~/.claude/settings.json
+│   └── sessions-poller.sh            # Sidecar: scans ~/.claude/sessions/*.json,
+│                                     # pushes sessions.snapshot to the HUD.
+│                                     # Auto-launched by apps/hud/instrumentation.ts.
 ├── deploy/
 │   └── raspberry-pi/                 # Pi 5 kiosk: setup.sh, kiosk.service, xrandr-rotate.sh
 ├── docs/
@@ -193,7 +198,8 @@ Workspaces managed via **pnpm**. TypeScript `strict: true` throughout.
 
 | Command                   | What it does                                                                 |
 | ------------------------- | ---------------------------------------------------------------------------- |
-| `pnpm dev`                | Run the HUD locally on `http://localhost:4000`.                              |
+| `pnpm dev`                | Run the HUD on `http://localhost:4000` (auto-launches the sessions poller).  |
+| `HUD_DISABLE_POLLER=1 pnpm dev` | Run the HUD without the sessions poller (e.g., remote HUD on iPad).    |
 | `pnpm build`              | Build all workspace packages.                                                |
 | `pnpm lint`               | ESLint flat config across the workspace.                                     |
 | `pnpm typecheck`          | `tsc --noEmit` across the workspace.                                         |
