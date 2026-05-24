@@ -120,15 +120,23 @@ function AgentCard({
       : agent.durationMs ?? Math.max(0, (agent.endedAt ?? agent.startedAt) - agent.startedAt);
 
   return (
-    <motion.button
-      type="button"
+    <motion.div
       key={agent.name}
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.18 }}
+      role="button"
+      tabIndex={0}
       onClick={() => show(agent.name)}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          show(agent.name);
+        }
+      }}
       data-no-swipe="true"
       aria-label={`Open details for ${agent.name}`}
       className="hud-card flex w-full items-start gap-3 p-4 text-left transition-colors hover:border-[color:color-mix(in_srgb,var(--color-hud-accent)_30%,var(--color-hud-card-border))] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
@@ -194,7 +202,7 @@ function AgentCard({
         </div>
       </div>
       <PinButton pinned={pinned} onToggle={onPinToggle} agentName={agent.name} />
-    </motion.button>
+    </motion.div>
   );
 }
 
