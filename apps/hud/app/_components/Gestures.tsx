@@ -6,8 +6,9 @@ import { animate, useMotionValue, useReducedMotion, useTransform, motion } from 
 import { useDrag } from '@use-gesture/react';
 
 // Ordered ring of primary views; swiping left advances, swiping right retreats.
-// Order matches the on-screen NavBar (Cost · Live · Sessions · Mascot).
-const ROUTES = ['/cost', '/', '/sessions', '/mascot'] as const;
+// Order matches the on-screen NavBar (Live · Sessions · Cost · Mascot) — Live
+// is the home and leftmost; Mascot is diagnostic and rightmost.
+const ROUTES = ['/', '/sessions', '/cost', '/mascot'] as const;
 
 function routeIndex(pathname: string): number {
   if (pathname === '/') return ROUTES.indexOf('/');

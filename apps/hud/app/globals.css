@@ -149,3 +149,25 @@ body {
 .session-icon-awaiting {
   animation: session-icon-awaiting 1.6s ease-in-out infinite;
 }
+
+/* Thin, theme-aware scrollbar for panels with internal overflow (e.g. the
+   Sessions list when many sessions exist). Webkit gets explicit pseudo-
+   elements; Firefox is covered by scrollbar-color/scrollbar-width. The
+   transparent track keeps the panel feeling weightless. */
+.hud-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-hud-card-border) transparent;
+}
+.hud-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.hud-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.hud-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--color-hud-card-border);
+  border-radius: 3px;
+}
+.hud-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--color-hud-fg-muted);
+}
