@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>HUD Audit v1 — Progress Dashboard</title>
+    <meta
+      name="description"
+      content="Stability and performance audit v1 for the Claude Code HUD. Live progress tracker for the five remediation phases."
+    />
+    <style>
+      :root {
+        --bg: #f7f6f2;
+        --bg-elev: #ffffff;
+        --bg-soft: #efece4;
+        --fg: #1a1a1a;
+        --fg-soft: #555048;
+        --fg-mute: #8a8377;
+        --border: #e3ddcf;
+        --accent: #cc785c;
+        --accent-soft: #f4e2d8;
+        --critical: #c84a3a;
+        --critical-soft: #fbe4df;
+        --high: #d88026;
+        --high-soft: #fbecd6;
+        --medium: #a37b1e;
+        --medium-soft: #f6e9c7;
+        --low: #7a7361;
+        --low-soft: #ece7d8;
+        --status-pending: #8a8377;
+        --status-in-progress: #cc785c;
+        --status-completed: #4f8b4a;
+        --status-blocked: #c84a3a;
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #1a1815;
+          --bg-elev: #221f1a;
+          --bg-soft: #2a2620;
+          --fg: #f4f1ea;
+          --fg-soft: #c6c0b3;
+          --fg-mute: #8a8377;
+          --border: #3a352d;
+          --accent: #e08a6c;
+          --accent-soft: #3a2a23;
+          --critical: #e5604c;
+          --critical-soft: #3a201c;
+          --high: #e89a3d;
+          --high-soft: #3a2b1a;
+          --medium: #c6a04a;
+          --medium-soft: #2f2a1a;
+          --low: #a8a08c;
+          --low-soft: #2a2620;
+          --status-completed: #6bb066;
+          --shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+        font-size: 16px;
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      .wrap {
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 32px 20px 96px;
+      }
+      header {
+        margin-bottom: 32px;
+      }
+      .crumbs {
+        font-size: 13px;
+        color: var(--fg-mute);
+        margin-bottom: 8px;
+      }
+      .crumbs a {
+        color: var(--fg-mute);
+      }
+      h1 {
+        font-size: 30px;
+        font-weight: 600;
+        margin: 0 0 6px;
+        letter-spacing: -0.01em;
+      }
+      .sub {
+        color: var(--fg-mute);
+        font-size: 14px;
+        margin: 0;
+      }
+      h2 {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--fg-mute);
+        font-weight: 600;
+        margin: 40px 0 14px;
+      }
+      .overall {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 24px;
+        box-shadow: var(--shadow);
+        margin-bottom: 16px;
+      }
+      .overall-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+      .overall-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--fg);
+        margin: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .overall-pct {
+        font-size: 28px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.02em;
+      }
+      .bar-track {
+        height: 8px;
+        background: var(--bg-soft);
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      .bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), var(--accent));
+        border-radius: 4px;
+        transition: width 0.4s ease;
+      }
+      .severity-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      @media (max-width: 640px) {
+        .severity-row {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      .sev-card {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px 16px;
+        box-shadow: var(--shadow);
+      }
+      .sev-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 600;
+        color: var(--fg-mute);
+        margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .sev-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 4px;
+      }
+      .sev-dot.critical {
+        background: var(--critical);
+      }
+      .sev-dot.high {
+        background: var(--high);
+      }
+      .sev-dot.medium {
+        background: var(--medium);
+      }
+      .sev-dot.low {
+        background: var(--low);
+      }
+      .sev-count {
+        font-size: 24px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.01em;
+      }
+      .sev-detail {
+        font-size: 12px;
+        color: var(--fg-mute);
+        margin-top: 2px;
+      }
+      .phase-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .phase {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px 22px;
+        box-shadow: var(--shadow);
+      }
+      .phase-head {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .phase-num {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--fg-mute);
+      }
+      .phase-title {
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: -0.005em;
+        color: var(--fg);
+        margin: 2px 0 0;
+        flex: 1;
+        min-width: 240px;
+      }
+      .phase-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        white-space: nowrap;
+      }
+      .badge.critical {
+        background: var(--critical-soft);
+        color: var(--critical);
+      }
+      .badge.high {
+        background: var(--high-soft);
+        color: var(--high);
+      }
+      .badge.medium {
+        background: var(--medium-soft);
+        color: var(--medium);
+      }
+      .badge.low {
+        background: var(--low-soft);
+        color: var(--low);
+      }
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        background: var(--bg-soft);
+        color: var(--fg-soft);
+      }
+      .status::before {
+        content: '';
+        width: 7px;
+        height: 7px;
+        border-radius: 4px;
+        background: var(--status-pending);
+      }
+      .status[data-status='in-progress']::before {
+        background: var(--status-in-progress);
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      .status[data-status='completed']::before {
+        background: var(--status-completed);
+      }
+      .status[data-status='blocked']::before {
+        background: var(--status-blocked);
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+      }
+      .phase-progress {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-top: 14px;
+      }
+      .phase-progress .bar-track {
+        flex: 1;
+      }
+      .phase-pct {
+        font-size: 13px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: var(--fg-soft);
+        min-width: 38px;
+        text-align: right;
+      }
+      .phase-detail {
+        font-size: 14px;
+        color: var(--fg-soft);
+        margin: 12px 0 0;
+      }
+      .findings-list {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+      }
+      .finding-chip {
+        font-size: 11px;
+        font-family: 'SF Mono', Menlo, monospace;
+        padding: 2px 8px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--fg-mute);
+      }
+      .phase-actions {
+        display: flex;
+        gap: 14px;
+        margin-top: 14px;
+        font-size: 13px;
+      }
+      .phase-actions a {
+        color: var(--accent);
+      }
+      .links-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+      }
+      @media (max-width: 640px) {
+        .links-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .link-card {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 16px;
+        box-shadow: var(--shadow);
+        text-decoration: none;
+        color: var(--fg);
+        display: block;
+        transition: border-color 0.15s ease;
+      }
+      .link-card:hover {
+        border-color: var(--accent);
+        text-decoration: none;
+      }
+      .link-card-title {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 2px;
+      }
+      .link-card-desc {
+        font-size: 12px;
+        color: var(--fg-mute);
+        line-height: 1.45;
+      }
+      footer {
+        margin-top: 48px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+        font-size: 12px;
+        color: var(--fg-mute);
+        line-height: 1.6;
+      }
+      footer code {
+        font-family: 'SF Mono', Menlo, monospace;
+        font-size: 11px;
+        padding: 1px 6px;
+        background: var(--bg-soft);
+        border-radius: 4px;
+      }
+      @media print {
+        body { background: white; color: black; }
+        .phase, .overall, .sev-card, .link-card { box-shadow: none; }
+        a { color: black; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <p class="crumbs">
+          <a href="../../">Docs</a> / <a href="../">Audits</a> / v1
+        </p>
+        <h1>Stability &amp; Performance Audit — v1</h1>
+        <p class="sub">
+          Five-phase remediation roadmap for the findings recorded on
+          2026-05-24. Status below is updated by hand after each PR
+          merges; see
+          <a href="./README.md#how-to-update-this-audit">how to update</a>.
+        </p>
+      </header>
+
+      <section>
+        <h2>Overall progress</h2>
+        <div class="overall">
+          <div class="overall-header">
+            <p class="overall-title">All phases</p>
+            <div class="overall-pct" id="overallPct">0%</div>
+          </div>
+          <div class="bar-track">
+            <div class="bar-fill" id="overallBar" style="width: 0%"></div>
+          </div>
+          <p class="sub" style="margin-top: 12px">
+            <span id="phasesCompleted">0</span> of 5 phases completed ·
+            <span id="findingsClosed">0</span> of 27 findings closed
+          </p>
+        </div>
+
+        <div class="severity-row">
+          <div class="sev-card">
+            <div class="sev-label"><span class="sev-dot critical"></span>Critical</div>
+            <div class="sev-count">6</div>
+            <div class="sev-detail">C1 – C6 · must fix</div>
+          </div>
+          <div class="sev-card">
+            <div class="sev-label"><span class="sev-dot high"></span>High</div>
+            <div class="sev-count">10</div>
+            <div class="sev-detail">H1 – H10 · fix before scaling</div>
+          </div>
+          <div class="sev-card">
+            <div class="sev-label"><span class="sev-dot medium"></span>Medium</div>
+            <div class="sev-count">7</div>
+            <div class="sev-detail">M1 – M7 · opportunistic</div>
+          </div>
+          <div class="sev-card">
+            <div class="sev-label"><span class="sev-dot low"></span>Low</div>
+            <div class="sev-count">4</div>
+            <div class="sev-detail">L1 – L4 · documented only</div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Phases</h2>
+        <ol class="phase-list">
+          <li class="phase" data-phase-progress="0" data-phase-status="pending" data-finding-count="3">
+            <div class="phase-head">
+              <div style="flex: 1; min-width: 240px">
+                <div class="phase-num">Phase 1</div>
+                <h3 class="phase-title">Security &amp; disk hygiene</h3>
+              </div>
+              <div class="phase-meta">
+                <span class="badge critical">Critical</span>
+                <span class="status" data-status="pending">Pending</span>
+              </div>
+            </div>
+            <p class="phase-detail">
+              Body-size cap on the ingest endpoint, size-based log rotation, and
+              TTL cleanup for orphaned subagent stash files. Additive changes,
+              no regression risk.
+            </p>
+            <div class="findings-list">
+              <span class="finding-chip">C1</span>
+              <span class="finding-chip">C5</span>
+              <span class="finding-chip">H8</span>
+            </div>
+            <div class="phase-progress">
+              <div class="bar-track"><div class="bar-fill" style="width: 0%"></div></div>
+              <div class="phase-pct">0%</div>
+            </div>
+            <div class="phase-actions">
+              <a href="./phases/phase-1-security-and-disk.md">Phase notes →</a>
+              <span style="color: var(--fg-mute)">No PR yet</span>
+            </div>
+          </li>
+
+          <li class="phase" data-phase-progress="0" data-phase-status="pending" data-finding-count="6">
+            <div class="phase-head">
+              <div style="flex: 1; min-width: 240px">
+                <div class="phase-num">Phase 2</div>
+                <h3 class="phase-title">Client performance</h3>
+              </div>
+              <div class="phase-meta">
+                <span class="badge critical">Critical</span>
+                <span class="status" data-status="pending">Pending</span>
+              </div>
+            </div>
+            <p class="phase-detail">
+              Virtualize the Sessions panel, freeze mascot animations when the
+              tab is hidden, consolidate seven setIntervals into one
+              visibility-aware ticker, hoist Zustand selectors, split
+              HudProvider, cap the SSR snapshot.
+            </p>
+            <div class="findings-list">
+              <span class="finding-chip">C2</span>
+              <span class="finding-chip">C3</span>
+              <span class="finding-chip">C4</span>
+              <span class="finding-chip">H4</span>
+              <span class="finding-chip">H5</span>
+              <span class="finding-chip">H6</span>
+            </div>
+            <div class="phase-progress">
+              <div class="bar-track"><div class="bar-fill" style="width: 0%"></div></div>
+              <div class="phase-pct">0%</div>
+            </div>
+            <div class="phase-actions">
+              <a href="./phases/phase-2-client-performance.md">Phase notes →</a>
+              <span style="color: var(--fg-mute)">No PR yet</span>
+            </div>
+          </li>
+
+          <li class="phase" data-phase-progress="0" data-phase-status="pending" data-finding-count="3">
+            <div class="phase-head">
+              <div style="flex: 1; min-width: 240px">
+                <div class="phase-num">Phase 3</div>
+                <h3 class="phase-title">Server &amp; bus</h3>
+              </div>
+              <div class="phase-meta">
+                <span class="badge high">High</span>
+                <span class="status" data-status="pending">Pending</span>
+              </div>
+            </div>
+            <p class="phase-detail">
+              O(1) replay via a parallel index map, liveness tracking for SSE
+              subscribers, and a snapshot cap that shrinks the initial SSR
+              payload by ~150 KB.
+            </p>
+            <div class="findings-list">
+              <span class="finding-chip">H1</span>
+              <span class="finding-chip">H3</span>
+              <span class="finding-chip">H6 (if pending)</span>
+            </div>
+            <div class="phase-progress">
+              <div class="bar-track"><div class="bar-fill" style="width: 0%"></div></div>
+              <div class="phase-pct">0%</div>
+            </div>
+            <div class="phase-actions">
+              <a href="./phases/phase-3-server-and-bus.md">Phase notes →</a>
+              <span style="color: var(--fg-mute)">No PR yet</span>
+            </div>
+          </li>
+
+          <li class="phase" data-phase-progress="0" data-phase-status="pending" data-finding-count="3">
+            <div class="phase-head">
+              <div style="flex: 1; min-width: 240px">
+                <div class="phase-num">Phase 4</div>
+                <h3 class="phase-title">Pollers</h3>
+              </div>
+              <div class="phase-meta">
+                <span class="badge critical">Critical</span>
+                <span class="badge high">High</span>
+                <span class="status" data-status="pending">Pending</span>
+              </div>
+            </div>
+            <p class="phase-detail">
+              Incremental JSONL parsing for the transcript poller (16 MB → less
+              than 1 MB per tick), in-process cache for the sessions poller, and
+              fail-loud state directory creation.
+            </p>
+            <div class="findings-list">
+              <span class="finding-chip">C6</span>
+              <span class="finding-chip">H9</span>
+              <span class="finding-chip">H10</span>
+            </div>
+            <div class="phase-progress">
+              <div class="bar-track"><div class="bar-fill" style="width: 0%"></div></div>
+              <div class="phase-pct">0%</div>
+            </div>
+            <div class="phase-actions">
+              <a href="./phases/phase-4-pollers.md">Phase notes →</a>
+              <span style="color: var(--fg-mute)">No PR yet</span>
+            </div>
+          </li>
+
+          <li class="phase" data-phase-progress="0" data-phase-status="pending" data-finding-count="1">
+            <div class="phase-head">
+              <div style="flex: 1; min-width: 240px">
+                <div class="phase-num">Phase 5</div>
+                <h3 class="phase-title">SSE backpressure</h3>
+              </div>
+              <div class="phase-meta">
+                <span class="badge high">High</span>
+                <span class="status" data-status="pending">Pending</span>
+              </div>
+            </div>
+            <p class="phase-detail">
+              Detect slow consumers, close the stream before the buffer leaks
+              RAM, and rely on the existing Last-Event-ID reconnect path. The
+              most invasive phase — ships in its own PR with a dedicated
+              benchmark.
+            </p>
+            <div class="findings-list">
+              <span class="finding-chip">H2</span>
+            </div>
+            <div class="phase-progress">
+              <div class="bar-track"><div class="bar-fill" style="width: 0%"></div></div>
+              <div class="phase-pct">0%</div>
+            </div>
+            <div class="phase-actions">
+              <a href="./phases/phase-5-sse-backpressure.md">Phase notes →</a>
+              <span style="color: var(--fg-mute)">No PR yet</span>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Reference material</h2>
+        <div class="links-grid">
+          <a class="link-card" href="./README.md">
+            <div class="link-card-title">Audit overview</div>
+            <div class="link-card-desc">
+              Scope, severity scale, how this audit fits the docs
+              versioning policy.
+            </div>
+          </a>
+          <a class="link-card" href="./methodology.md">
+            <div class="link-card-title">Measurement methodology</div>
+            <div class="link-card-desc">
+              How to capture before/after numbers for each budget.
+            </div>
+          </a>
+          <a class="link-card" href="./findings/critical.md">
+            <div class="link-card-title">Critical findings (C1 – C6)</div>
+            <div class="link-card-desc">
+              Six findings that break a budget or expose the service today.
+            </div>
+          </a>
+          <a class="link-card" href="./findings/high.md">
+            <div class="link-card-title">High findings (H1 – H10)</div>
+            <div class="link-card-desc">
+              Ten findings that degrade behaviour under realistic load.
+            </div>
+          </a>
+          <a class="link-card" href="./findings/medium-low.md">
+            <div class="link-card-title">Medium and low findings</div>
+            <div class="link-card-desc">
+              Eleven quality and operational findings (M1 – M7, L1 – L4).
+            </div>
+          </a>
+          <a class="link-card" href="../../../CLAUDE.md">
+            <div class="link-card-title">CLAUDE.md §11 — budgets</div>
+            <div class="link-card-desc">
+              The first-paint, ingest-to-screen, fps, and RSS targets this
+              audit measures against.
+            </div>
+          </a>
+        </div>
+      </section>
+
+      <footer>
+        Dashboard auto-derives the overall progress from each phase's
+        <code>data-phase-progress</code> attribute. To update after a phase
+        merges, edit the matching <code>&lt;li class="phase"&gt;</code>:
+        set <code>data-phase-progress</code> to a number from 0 to 100, set
+        <code>data-phase-status</code> to <code>pending</code>,
+        <code>in-progress</code>, <code>completed</code>, or
+        <code>blocked</code>, and replace the "No PR yet" span with a link.
+        The script at the bottom recomputes everything on load.
+        <br /><br />
+        Last regenerated: <span id="lastUpdated">2026-05-24</span>.
+      </footer>
+    </div>
+
+    <script>
+      (function () {
+        var phases = document.querySelectorAll('.phase');
+        var totalProgress = 0;
+        var totalFindings = 0;
+        var closedFindings = 0;
+        var completed = 0;
+
+        phases.forEach(function (el) {
+          var progress = parseInt(el.getAttribute('data-phase-progress') || '0', 10);
+          var status = el.getAttribute('data-phase-status') || 'pending';
+          var findingCount = parseInt(el.getAttribute('data-finding-count') || '0', 10);
+
+          // Per-phase bar and percentage.
+          var fill = el.querySelector('.phase-progress .bar-fill');
+          var pct = el.querySelector('.phase-pct');
+          if (fill) fill.style.width = progress + '%';
+          if (pct) pct.textContent = progress + '%';
+
+          // Status badge.
+          var statusEl = el.querySelector('.status');
+          if (statusEl) {
+            statusEl.setAttribute('data-status', status);
+            var labels = {
+              pending: 'Pending',
+              'in-progress': 'In progress',
+              completed: 'Completed',
+              blocked: 'Blocked',
+            };
+            statusEl.textContent = labels[status] || 'Pending';
+          }
+
+          totalProgress += progress;
+          totalFindings += findingCount;
+          closedFindings += Math.round((findingCount * progress) / 100);
+          if (status === 'completed') completed += 1;
+        });
+
+        var overallPct = phases.length ? Math.round(totalProgress / phases.length) : 0;
+        var overallBar = document.getElementById('overallBar');
+        var overallEl = document.getElementById('overallPct');
+        if (overallBar) overallBar.style.width = overallPct + '%';
+        if (overallEl) overallEl.textContent = overallPct + '%';
+
+        var done = document.getElementById('phasesCompleted');
+        if (done) done.textContent = String(completed);
+        var fclosed = document.getElementById('findingsClosed');
+        if (fclosed) fclosed.textContent = String(closedFindings);
+      })();
+    </script>
+  </body>
+</html>

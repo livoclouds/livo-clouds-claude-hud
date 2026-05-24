@@ -9,6 +9,7 @@ and how it evolves over time.
 ## Current version
 
 → **[v1](./v1)** — Initial release documentation
+→ **[audits/v1](./audits/v1)** — Stability & performance audit (2026-05-24)
 
 ## Versioning policy
 
@@ -16,6 +17,12 @@ Documentation is versioned by **major product milestones**, not by minor edits.
 Each major version lives in its own subdirectory (`v1/`, `v2/`, …). Older
 versions are preserved verbatim for historical reference; they are never
 rewritten in place.
+
+Audits follow the same convention under [`audits/`](./audits): each iteration
+of the audit lives in `audits/vN/` and is sealed once published. New findings
+are recorded in `audits/vN+1/` rather than rewriting a prior audit. Phase
+status inside an audit version *is* mutable — progress is updated as
+remediation PRs ship.
 
 When a new major version is created:
 
@@ -45,6 +52,8 @@ versions.
 | **System architecture**                 | [`v1/architecture.md`](./v1/architecture.md)                                     |
 | **Glossary of terms**                   | [`v1/glossary.md`](./v1/glossary.md)                                             |
 | **Status badges & conventions**         | [`v1/conventions.md`](./v1/conventions.md)                                       |
+| **Audit v1 progress dashboard**         | [`audits/v1/index.html`](./audits/v1/index.html)                                 |
+| **Audit v1 findings**                   | [`audits/v1/`](./audits/v1)                                                      |
 
 ---
 
