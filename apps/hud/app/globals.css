@@ -112,3 +112,40 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Sessions panel: asterisk-glyph status icons matching the terminal
+   /agents view. Working sessions rotate-and-pulse continuously, Pinned/
+   Awaiting softly fade in and out, Completed is static. The global
+   prefers-reduced-motion override above flattens these to a single
+   frame, so no extra guard is needed here. */
+@keyframes session-icon-working {
+  0%   { transform: rotate(0deg)   scale(1);    }
+  50%  { transform: rotate(180deg) scale(1.15); }
+  100% { transform: rotate(360deg) scale(1);    }
+}
+
+@keyframes session-icon-awaiting {
+  0%   { opacity: 1;    }
+  50%  { opacity: 0.55; }
+  100% { opacity: 1;    }
+}
+
+.session-icon {
+  display: inline-block;
+  font-size: 14px;
+  line-height: 1;
+  width: 14px;
+  height: 14px;
+  text-align: center;
+  transform-origin: center;
+  font-feature-settings: "ss01";
+}
+
+.session-icon-working {
+  animation: session-icon-working 1.2s linear infinite;
+  text-shadow: 0 0 6px currentColor;
+}
+
+.session-icon-awaiting {
+  animation: session-icon-awaiting 1.6s ease-in-out infinite;
+}

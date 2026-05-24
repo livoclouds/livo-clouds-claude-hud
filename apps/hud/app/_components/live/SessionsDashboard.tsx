@@ -1,14 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useHud, useHudHydrated } from './HudProvider';
+import { useSessionDetailSheet } from './SessionDetailSheet';
 import { usePinnedCodeSessions } from '@/lib/pins';
 import type { HudCodeSession } from '@/lib/store';
 import { basename, relativeTime, truncate } from '@/lib/format';
 
 // Status buckets in the order the terminal `/agents` view renders them.
-type Bucket = 'awaiting' | 'working' | 'completed';
+export type Bucket = 'awaiting' | 'working' | 'completed';
 
 // Fallback idle threshold for "orphan" sessions that have no daemon
 // state.json (those don't carry a semantic state field, so we fall back to
@@ -57,6 +58,62 @@ const BUCKET_HEADER_COLOR: Record<Bucket, string> = {
 
 function sortByUpdated(a: HudCodeSession, b: HudCodeSession): number {
   return b.updatedAt - a.updatedAt;
+}
+
+// Double-tap / double-click detector. Returns a stable handler that fires
+// `onDouble` only when two taps land within `windowMs`. Used on session
+// cards because explicit double-activation avoids accidental sheet opens
+// while the user is scrolling on iPad. Mirrors the long-press counter
+// pattern in `LongPressable.tsx`.
+const DOUBLE_TAP_WINDOW_MS = 320;
+
+function useDoubleTap(onDouble: () => void) {
+  const lastRef = useRef(0);
+  return useCallback(() => {
+    const now = Date.now();
+    if (now - lastRef.current < DOUBLE_TAP_WINDOW_MS) {
+      lastRef.current = 0;
+      onDouble();
+    } else {
+      lastRef.current = now;
+    }
+  }, [onDouble]);
+}
+
+// Asterisk-glyph status icon matching the terminal /agents view. Animation
+// classes (defined in apps/hud/app/globals.css) cycle CSS keyframes that
+// the global reduced-motion rule flattens, so no JS guard is required.
+export function SessionStatusIcon({
+  bucket,
+  color,
+  size,
+}: {
+  bucket: Bucket;
+  color?: string;
+  size?: number;
+}) {
+  const cls =
+    bucket === 'working'
+      ? 'session-icon session-icon-working'
+      : bucket === 'awaiting'
+        ? 'session-icon session-icon-awaiting'
+        : 'session-icon';
+  return (
+    <span
+      aria-hidden
+      className={cls}
+      style={{
+        color: color ?? BUCKET_DOT[bucket],
+        marginTop: 4,
+        flex: 'none',
+        ...(typeof size === 'number'
+          ? { width: size, height: size, fontSize: size }
+          : {}),
+      }}
+    >
+      ✻
+    </span>
+  );
 }
 
 function PinButton({
@@ -114,6 +171,8 @@ function SessionCardRow({
   hydrated: boolean;
 }) {
   const dot = BUCKET_DOT[bucket];
+  const { show } = useSessionDetailSheet();
+  const handleDoubleActivate = useDoubleTap(() => show(session.sessionId));
   return (
     <motion.div
       layout
@@ -122,25 +181,20 @@ function SessionCardRow({
       exit={{ opacity: 0, y: -6 }}
       transition={{ duration: 0.16 }}
       data-no-swipe="true"
-      className="flex items-start gap-3 rounded-md px-2 py-2 transition-colors hover:bg-[color:color-mix(in_srgb,var(--color-hud-accent)_10%,transparent)]"
+      role="button"
+      tabIndex={0}
+      aria-label={`Open details for ${session.name}`}
+      onClick={handleDoubleActivate}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          show(session.sessionId);
+        }
+      }}
+      className="flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 transition-colors hover:bg-[color:color-mix(in_srgb,var(--color-hud-accent)_10%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
     >
-      <span
-        aria-hidden
-        className={bucket === 'working' ? 'animate-pulse' : ''}
-        style={{
-          display: 'inline-block',
-          width: 8,
-          height: 8,
-          marginTop: 7,
-          borderRadius: 999,
-          background: dot,
-          boxShadow:
-            bucket === 'working'
-              ? `0 0 8px ${dot}`
-              : `0 0 3px color-mix(in srgb, ${dot} 50%, transparent)`,
-          flex: 'none',
-        }}
-      />
+      <SessionStatusIcon bucket={bucket} color={dot} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span
