@@ -7,9 +7,9 @@ import { ThemeToggle } from './ThemeToggle';
 type NavItem = { href: string; label: string; glyph: string };
 
 const ITEMS: ReadonlyArray<NavItem> = [
-  { href: '/cost', label: 'Cost', glyph: '$' },
   { href: '/', label: 'Live', glyph: '✦' },
   { href: '/sessions', label: 'Sessions', glyph: '≡' },
+  { href: '/cost', label: 'Cost', glyph: '$' },
   { href: '/mascot', label: 'Mascot', glyph: '◉' },
 ];
 

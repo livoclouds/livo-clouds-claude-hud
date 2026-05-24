@@ -1,6 +1,5 @@
 'use client';
 
-import { Mascot } from '../mascot/Mascot';
 import { MetricSheetProvider } from '../MetricSheet';
 import { SessionCard } from './SessionCard';
 import { TokenStat } from './TokenStat';
@@ -11,6 +10,7 @@ import { SessionsDashboard } from './SessionsDashboard';
 import { AgentDetailSheetProvider } from './AgentDetailSheet';
 import { SessionDetailSheetProvider } from './SessionDetailSheet';
 import { ErrorPill } from './ErrorPill';
+import { StickyMascot } from './StickyMascot';
 
 export function LiveView() {
   return (
@@ -20,8 +20,15 @@ export function LiveView() {
           <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10">
           <ErrorPill />
 
-          <section className="flex justify-center py-2">
-            <Mascot />
+          {/* Mascot sticks below the StatusBar (h-14 = 56 px → top-14) and
+              shrinks on scroll so it stays visible while the user is reading
+              the panels below. data-no-swipe prevents the sticky area from
+              swallowing horizontal swipes between tabs. */}
+          <section
+            className="sticky top-14 z-20 flex justify-center py-2"
+            data-no-swipe="true"
+          >
+            <StickyMascot />
           </section>
 
           <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
