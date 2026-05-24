@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useHud, useHudHydrated } from './HudProvider';
 import { basename, relativeTime, truncate } from '@/lib/format';
+import { useGlobalTick } from '@/lib/use-global-tick';
+import { selectSession } from '@/lib/store-selectors';
 
 export function SessionCard() {
-  const session = useHud((s) => s.session);
+  const session = useHud(selectSession);
   // Look up a human-readable name from the sessions poller snapshot. When the
   // poller is feeding data (default with `pnpm dev`), the name is the title
   // the user gave the session in Claude Code (e.g. "Edit bank profile -
@@ -14,13 +15,7 @@ export function SessionCard() {
     s.session ? (s.codeSessions[s.session.id]?.name ?? null) : null,
   );
   const hydrated = useHudHydrated();
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (!session || session.endedAt !== null) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [session]);
+  const now = useGlobalTick('fast');
 
   if (!session) {
     return (

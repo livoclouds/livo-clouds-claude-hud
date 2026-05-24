@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@livoclouds/contracts": "workspace:*",
+    "@tanstack/react-virtual": "^3.13.25",
     "@use-gesture/react": "^10.3.1",
     "motion": "^12.0.0",
     "next": "^16.0.0",

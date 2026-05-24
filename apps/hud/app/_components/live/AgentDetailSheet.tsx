@@ -22,6 +22,7 @@ import { useHud, useHudHydrated } from './HudProvider';
 import { classifyTool } from '@/lib/mascot/state';
 import type { HudAgent, HudAgentToolCall } from '@/lib/store';
 import { relativeTime, truncate } from '@/lib/format';
+import { useGlobalTick } from '@/lib/use-global-tick';
 
 type SheetState = {
   open: string | null;
@@ -118,7 +119,7 @@ function AgentDetailSheet() {
   const titleId = useId();
   const y = useMotionValue(0);
   const lastTrigger = useRef<HTMLElement | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const now = useGlobalTick('fast');
 
   useEffect(() => {
     if (open) {
@@ -146,13 +147,6 @@ function AgentDetailSheet() {
     if (!open) y.set(0);
   }, [open, y]);
 
-  // Re-render every second while a working agent is open so the elapsed
-  // counter ticks.
-  useEffect(() => {
-    if (!agent || agent.status !== 'working') return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [agent]);
 
   const bindDismiss = useDrag(
     ({ last, movement: [, my], velocity: [, vy], direction: [, dy] }) => {

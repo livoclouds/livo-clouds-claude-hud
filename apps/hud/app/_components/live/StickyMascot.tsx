@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMotionValueEvent, useReducedMotion, useScroll } from 'motion/react';
 import { Mascot } from '../mascot/Mascot';
+import { useDocumentVisibility } from '@/lib/use-visibility';
 
 // Mascot sticks just below the StatusBar (h-14 = 56 px) and shrinks as the
 // user scrolls so it stops dominating the viewport but stays present. CLAUDE.md
@@ -20,6 +21,7 @@ function clamp(n: number, lo: number, hi: number): number {
 
 export function StickyMascot() {
   const reduced = useReducedMotion();
+  const visibility = useDocumentVisibility();
   const { scrollY } = useScroll();
   // useState ensures Mascot re-renders only when the rounded size actually
   // changes — at most ~120 updates over a 240 px scroll window, which is
@@ -27,7 +29,7 @@ export function StickyMascot() {
   const [size, setSize] = useState<number>(reduced ? REDUCED_MOTION_SIZE : MAX_SIZE);
 
   useMotionValueEvent(scrollY, 'change', (latest: number) => {
-    if (reduced) return;
+    if (reduced || visibility !== 'visible') return;
     const t = clamp(
       (latest - SHRINK_START_PX) / (SHRINK_END_PX - SHRINK_START_PX),
       0,

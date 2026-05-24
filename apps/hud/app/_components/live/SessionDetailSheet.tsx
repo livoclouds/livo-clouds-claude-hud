@@ -23,6 +23,7 @@ import { SessionStatusIcon, type Bucket } from './SessionsDashboard';
 import { usePinnedCodeSessions } from '@/lib/pins';
 import type { HudCodeSession } from '@/lib/store';
 import { relativeTime, truncate } from '@/lib/format';
+import { useGlobalTick } from '@/lib/use-global-tick';
 
 type SheetState = {
   open: string | null;
@@ -97,7 +98,7 @@ function SessionDetailSheet() {
   const titleId = useId();
   const y = useMotionValue(0);
   const lastTrigger = useRef<HTMLElement | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const now = useGlobalTick('slow');
 
   // Restore focus when the sheet closes.
   useEffect(() => {
@@ -126,12 +127,6 @@ function SessionDetailSheet() {
     if (!open) y.set(0);
   }, [open, y]);
 
-  // Tick every 10 s so relative timestamps stay fresh while the sheet is up.
-  useEffect(() => {
-    if (!open) return;
-    const id = setInterval(() => setNow(Date.now()), 10_000);
-    return () => clearInterval(id);
-  }, [open]);
 
   const bindDismiss = useDrag(
     ({ last, movement: [, my], velocity: [, vy], direction: [, dy] }) => {

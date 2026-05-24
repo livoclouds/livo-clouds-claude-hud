@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { useCallback, useMemo, useRef } from 'react';
+import { motion } from 'motion/react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useHud, useHudHydrated } from './HudProvider';
 import { useSessionDetailSheet } from './SessionDetailSheet';
 import { usePinnedCodeSessions } from '@/lib/pins';
@@ -15,6 +16,12 @@ import {
   type CollapsibleSection,
 } from '@/lib/sessions-filters';
 import { SessionsFilterBar } from './SessionsFilterBar';
+import { useGlobalTick } from '@/lib/use-global-tick';
+import {
+  selectCodeSessions,
+  selectCodeSessionsUpdatedAt,
+  selectDefaultModel,
+} from '@/lib/store-selectors';
 
 // Re-export the bucket type so other modules (e.g. SessionDetailSheet) keep
 // importing it from here without caring that the canonical definition now
@@ -38,6 +45,10 @@ const BUCKET_HEADER_COLOR: Record<Bucket, string> = {
   working: 'var(--color-hud-warn)',
   completed: 'var(--color-hud-success)',
 };
+
+// Estimated row heights for the virtualizer. Headers are shorter than data rows.
+const HEADER_HEIGHT = 36;
+const ROW_HEIGHT = 68;
 
 // Double-tap / double-click detector. Returns a stable handler that fires
 // `onDouble` only when two taps land within `windowMs`. Used on session
@@ -150,12 +161,7 @@ function SessionCardRow({
   const { show } = useSessionDetailSheet();
   const handleDoubleActivate = useDoubleTap(() => show(session.sessionId));
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -6 }}
-      transition={{ duration: 0.16 }}
+    <div
       data-no-swipe="true"
       role="button"
       tabIndex={0}
@@ -213,7 +219,7 @@ function SessionCardRow({
         )}
       </div>
       <PinButton pinned={pinned} onToggle={onPinToggle} sessionName={session.name} />
-    </motion.div>
+    </div>
   );
 }
 
@@ -266,73 +272,113 @@ function CollapsibleHeader({
   );
 }
 
-function BucketSection({
-  bucket,
-  sessions,
-  pinnedSet,
-  togglePin,
-  now,
-  hydrated,
-  collapsed,
-  onToggleCollapsed,
-}: {
-  bucket: Bucket;
-  sessions: ReadonlyArray<HudCodeSession>;
-  pinnedSet: ReadonlySet<string>;
-  togglePin: (sessionId: string) => void;
-  now: number;
-  hydrated: boolean;
-  collapsed: boolean;
-  onToggleCollapsed: () => void;
-}) {
-  if (sessions.length === 0) return null;
-  return (
-    <section>
-      <CollapsibleHeader
-        label={BUCKET_LABEL[bucket]}
-        count={sessions.length}
-        color={BUCKET_HEADER_COLOR[bucket]}
-        section={bucket}
-        collapsed={collapsed}
-        onToggle={onToggleCollapsed}
-      />
-      <AnimatePresence initial={false}>
-        {!collapsed && (
-          <motion.div
-            key="content"
-            id={`bucket-${bucket}`}
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.18 }}
-            className="overflow-hidden"
-          >
-            <div className="mt-1 flex flex-col">
-              <AnimatePresence initial={false}>
-                {sessions.map((s) => (
-                  <SessionCardRow
-                    key={s.sessionId}
-                    session={s}
-                    bucket={bucket}
-                    pinned={pinnedSet.has(s.sessionId)}
-                    onPinToggle={() => togglePin(s.sessionId)}
-                    now={now}
-                    hydrated={hydrated}
-                  />
-                ))}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </section>
-  );
+// ─── Flat virtual items ────────────────────────────────────────────────────────
+// The virtualizer works on a flat array of typed items. Headers are
+// interleaved with rows; rows are omitted when the section is collapsed so
+// the virtual height collapses instantly (no AnimatePresence needed).
+
+type VirtualItem =
+  | {
+      kind: 'header';
+      section: CollapsibleSection;
+      label: string;
+      count: number;
+      color: string;
+      collapsed: boolean;
+    }
+  | {
+      kind: 'row';
+      session: HudCodeSession;
+      bucket: Bucket;
+      isPinned: boolean;
+    };
+
+function buildItems(
+  pinned: ReadonlyArray<HudCodeSession>,
+  awaiting: ReadonlyArray<HudCodeSession>,
+  working: ReadonlyArray<HudCodeSession>,
+  completed: ReadonlyArray<HudCodeSession>,
+  pinnedSet: ReadonlySet<string>,
+  collapsed: ReadonlySet<CollapsibleSection>,
+  now: number,
+): VirtualItem[] {
+  const items: VirtualItem[] = [];
+
+  if (pinned.length > 0) {
+    const isCollapsed = collapsed.has('pinned');
+    items.push({
+      kind: 'header',
+      section: 'pinned',
+      label: 'Pinned',
+      count: pinned.length,
+      color: 'var(--color-hud-fg-muted)',
+      collapsed: isCollapsed,
+    });
+    if (!isCollapsed) {
+      for (const s of pinned) {
+        items.push({ kind: 'row', session: s, bucket: bucketFor(s, now), isPinned: true });
+      }
+    }
+  }
+
+  if (awaiting.length > 0) {
+    const isCollapsed = collapsed.has('awaiting');
+    items.push({
+      kind: 'header',
+      section: 'awaiting',
+      label: BUCKET_LABEL['awaiting'],
+      count: awaiting.length,
+      color: BUCKET_HEADER_COLOR['awaiting'],
+      collapsed: isCollapsed,
+    });
+    if (!isCollapsed) {
+      for (const s of awaiting) {
+        items.push({ kind: 'row', session: s, bucket: 'awaiting', isPinned: pinnedSet.has(s.sessionId) });
+      }
+    }
+  }
+
+  if (working.length > 0) {
+    const isCollapsed = collapsed.has('working');
+    items.push({
+      kind: 'header',
+      section: 'working',
+      label: BUCKET_LABEL['working'],
+      count: working.length,
+      color: BUCKET_HEADER_COLOR['working'],
+      collapsed: isCollapsed,
+    });
+    if (!isCollapsed) {
+      for (const s of working) {
+        items.push({ kind: 'row', session: s, bucket: 'working', isPinned: pinnedSet.has(s.sessionId) });
+      }
+    }
+  }
+
+  if (completed.length > 0) {
+    const isCollapsed = collapsed.has('completed');
+    items.push({
+      kind: 'header',
+      section: 'completed',
+      label: BUCKET_LABEL['completed'],
+      count: completed.length,
+      color: BUCKET_HEADER_COLOR['completed'],
+      collapsed: isCollapsed,
+    });
+    if (!isCollapsed) {
+      for (const s of completed) {
+        items.push({ kind: 'row', session: s, bucket: 'completed', isPinned: pinnedSet.has(s.sessionId) });
+      }
+    }
+  }
+
+  return items;
 }
 
 export function SessionsDashboard() {
-  const codeSessions = useHud((s) => s.codeSessions);
-  const codeSessionsUpdatedAt = useHud((s) => s.codeSessionsUpdatedAt);
-  const defaultModel = useHud((s) => s.defaultModel);
+  const codeSessions = useHud(selectCodeSessions);
+  const codeSessionsUpdatedAt = useHud(selectCodeSessionsUpdatedAt);
+  const defaultModel = useHud(selectDefaultModel);
   const hydrated = useHudHydrated();
   const { pins, toggle } = usePinnedCodeSessions();
   const {
@@ -345,16 +391,9 @@ export function SessionsDashboard() {
     toggleCollapsed,
     clear,
   } = useSessionsFilters();
-  const [now, setNow] = useState(() => Date.now());
 
-  // Bump every 10s so relative timestamps refresh and the activity-based
-  // bucketing re-evaluates promptly (a session crossing the 5-minute idle
-  // threshold should fall into "Completed" without waiting for the next
-  // poller snapshot to arrive).
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 10_000);
-    return () => clearInterval(id);
-  }, []);
+  // Single shared ticker replaces the per-component setInterval (C4).
+  const now = useGlobalTick('slow');
 
   const filtered = useMemo(
     () => applyFilters(Object.values(codeSessions), filters, pins, now),
@@ -368,6 +407,20 @@ export function SessionsDashboard() {
     !isEmpty && filteredTotal === 0 && pinned.length === 0;
   const stale =
     codeSessionsUpdatedAt !== null && hydrated && now - codeSessionsUpdatedAt > 30_000;
+
+  // Build flat virtualizable items from the filtered + collapsed state.
+  const items = useMemo(
+    () => buildItems(pinned, awaiting, working, completed, pins, filters.collapsed, now),
+    [pinned, awaiting, working, completed, pins, filters.collapsed, now],
+  );
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (i) => (items[i]?.kind === 'header' ? HEADER_HEIGHT : ROW_HEIGHT),
+    overscan: 4,
+  });
 
   return (
     <div className="hud-card p-6">
@@ -432,78 +485,51 @@ export function SessionsDashboard() {
               </button>
             </div>
           ) : (
-            <div className="hud-scrollbar mt-3 max-h-[60vh] space-y-3 overflow-y-auto pr-1">
-              {pinned.length > 0 && (
-                <section>
-                  <CollapsibleHeader
-                    label="Pinned"
-                    count={pinned.length}
-                    color="var(--color-hud-fg-muted)"
-                    section="pinned"
-                    collapsed={filters.collapsed.has('pinned')}
-                    onToggle={() => toggleCollapsed('pinned')}
-                  />
-                  <AnimatePresence initial={false}>
-                    {!filters.collapsed.has('pinned') && (
-                      <motion.div
-                        key="pinned-content"
-                        id="bucket-pinned"
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.18 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="mt-1 flex flex-col">
-                          <AnimatePresence initial={false}>
-                            {pinned.map((s) => (
-                              <SessionCardRow
-                                key={s.sessionId}
-                                session={s}
-                                bucket={bucketFor(s, now)}
-                                pinned
-                                onPinToggle={() => toggle(s.sessionId)}
-                                now={now}
-                                hydrated={hydrated}
-                              />
-                            ))}
-                          </AnimatePresence>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </section>
-              )}
-              <BucketSection
-                bucket="awaiting"
-                sessions={awaiting}
-                pinnedSet={pins}
-                togglePin={toggle}
-                now={now}
-                hydrated={hydrated}
-                collapsed={filters.collapsed.has('awaiting')}
-                onToggleCollapsed={() => toggleCollapsed('awaiting')}
-              />
-              <BucketSection
-                bucket="working"
-                sessions={working}
-                pinnedSet={pins}
-                togglePin={toggle}
-                now={now}
-                hydrated={hydrated}
-                collapsed={filters.collapsed.has('working')}
-                onToggleCollapsed={() => toggleCollapsed('working')}
-              />
-              <BucketSection
-                bucket="completed"
-                sessions={completed}
-                pinnedSet={pins}
-                togglePin={toggle}
-                now={now}
-                hydrated={hydrated}
-                collapsed={filters.collapsed.has('completed')}
-                onToggleCollapsed={() => toggleCollapsed('completed')}
-              />
+            // Virtualized scroll container: only the ~10 visible rows plus
+            // overscan are mounted, regardless of total session count (C2).
+            <div
+              ref={scrollRef}
+              className="hud-scrollbar mt-3 max-h-[60vh] overflow-y-auto pr-1"
+            >
+              <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+                {virtualizer.getVirtualItems().map((vItem) => {
+                  const item = items[vItem.index];
+                  if (!item) return null;
+                  return (
+                    <div
+                      key={vItem.key}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: `${vItem.size}px`,
+                        transform: `translateY(${vItem.start}px)`,
+                      }}
+                    >
+                      {item.kind === 'header' ? (
+                        <CollapsibleHeader
+                          label={item.label}
+                          count={item.count}
+                          color={item.color}
+                          section={item.section}
+                          collapsed={item.collapsed}
+                          onToggle={() => toggleCollapsed(item.section)}
+                        />
+                      ) : (
+                        <SessionCardRow
+                          session={item.session}
+                          bucket={item.bucket}
+                          pinned={item.isPinned}
+                          onPinToggle={() => toggle(item.session.sessionId)}
+                          now={now}
+                          hydrated={hydrated}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </>
