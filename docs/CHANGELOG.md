@@ -7,6 +7,32 @@ uses [Semantic Versioning](https://semver.org) at the major-version level only
 
 ---
 
+## [v1.0.8] — 2026-05-24
+
+### Added
+
+- **Stability & performance audit — v1 published.** New `docs/audits/v1/`
+  tree captures the first comprehensive audit of the HUD codebase. Twenty-
+  seven findings are recorded (6 critical, 10 high, 7 medium, 4 low) with
+  a five-phase remediation roadmap. The audit is sealed for findings but
+  carries a live status board:
+  - `docs/audits/v1/index.html` — interactive progress dashboard, updated
+    by hand after each remediation PR merges.
+  - `docs/audits/v1/README.md` — audit overview, severity scale, and the
+    update protocol.
+  - `docs/audits/v1/methodology.md` — exact procedures for measuring each
+    `CLAUDE.md §11` budget before and after a fix.
+  - `docs/audits/v1/findings/{critical,high,medium-low}.md` — frozen
+    record of every finding observed on 2026-05-24, with location, impact,
+    and proposed fix.
+  - `docs/audits/v1/phases/phase-{1..5}-*.md` — per-phase scope, files to
+    change, test plan, and before/after metrics. Each phase is a self-
+    contained PR.
+- `docs/README.md` linked to the new audit tree and documented the
+  parallel `audits/vN/` versioning convention.
+
+---
+
 ## [v1.0.7] — 2026-05-23
 
 ### Added
