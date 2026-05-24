@@ -84,6 +84,13 @@ function stateFromEvent(
     case 'compact.end':
       if (nowMs - event.ts < COMPACT_END_WINDOW_MS) return 'compacting';
       return derivePreCompactState(recentEvents, nowMs);
+    case 'agent.invoke':
+      // A subagent is now doing the work — render the same `running` halo we
+      // use for Bash so the user perceives "something is happening in the
+      // background" without inventing a new mascot state.
+      return 'running';
+    case 'agent.complete':
+      return event.error ? 'errored' : 'succeeded';
     case 'error':
       return 'errored';
   }

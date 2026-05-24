@@ -6,7 +6,7 @@ import { SessionCard } from './SessionCard';
 import { TokenStat } from './TokenStat';
 import { CostStat } from './CostStat';
 import { ContextRing } from './ContextRing';
-import { LastTool } from './LastTool';
+import { AgentsDashboard } from './AgentsDashboard';
 import { ErrorPill } from './ErrorPill';
 
 export function LiveView() {
@@ -34,7 +34,7 @@ export function LiveView() {
         </section>
 
         <section>
-          <LastTool />
+          <AgentsDashboard />
         </section>
       </main>
     </MetricSheetProvider>

@@ -87,16 +87,88 @@ if [ -z "$HOOK_NAME" ]; then
 fi
 [ -n "$HOOK_NAME" ] || bail unknown missing_hook_name
 
+# Pre-extract identifiers we need to discriminate PostToolUse(Agent) from
+# generic tool calls, and to pair SubagentStop with the matching agent name.
+SID="$(printf '%s' "$PAYLOAD" | jq -r '.session_id // .sessionId // empty')"
+TOOL_NAME="$(printf '%s' "$PAYLOAD" | jq -r '.tool_name // .tool // empty')"
+SUBAGENT_TYPE="$(printf '%s' "$PAYLOAD" | jq -r '
+  ((.tool_input // .toolInput) // {})
+  | (.subagent_type // .subagentType // empty)
+')"
+AGENT_DESC="$(printf '%s' "$PAYLOAD" | jq -r '
+  ((.tool_input // .toolInput) // {})
+  | (.description // empty)
+')"
+
+# Side-state to remember the agent invoked between PostToolUse(Agent) and the
+# matching SubagentStop. One file per session, cleared on session.start and
+# after the agent completes.
+AGENT_STATE_DIR="${TMPDIR:-/tmp}/livo-hud-agents"
+mkdir -p "$AGENT_STATE_DIR" 2>/dev/null || true
+
+AGENT_NAME=""
+CC_VERSION=""
+CC_DEFAULT_MODEL=""
+
 case "$HOOK_NAME" in
-  SessionStart)     EVENT_TYPE="session.start"  ;;
-  SessionEnd)       EVENT_TYPE="session.end"    ;;
-  UserPromptSubmit) EVENT_TYPE="prompt.submit"  ;;
-  PostToolUse)      EVENT_TYPE="tool.use"       ;;
-  Stop|SubagentStop) EVENT_TYPE="turn.stop"     ;;
-  PreCompact)       EVENT_TYPE="compact.start"  ;;
-  Notification)     bail "$HOOK_NAME" notification_unmapped ;;
-  PreToolUse)       bail "$HOOK_NAME" pretooluse_unmapped ;;
-  *)                bail "$HOOK_NAME" unsupported_hook ;;
+  SessionStart)
+    EVENT_TYPE="session.start"
+    # Capture Claude Code version (last segment of CLAUDE_CODE_EXECPATH) and
+    # the default model the user configured (~/.claude/settings.json).
+    CC_VERSION="$(basename "${CLAUDE_CODE_EXECPATH:-}" 2>/dev/null)"
+    if [ "$CC_VERSION" = "" ] || [ "$CC_VERSION" = "." ]; then
+      CC_VERSION=""
+    fi
+    if [ -f "$HOME/.claude/settings.json" ]; then
+      CC_DEFAULT_MODEL="$(jq -r '.model // empty' "$HOME/.claude/settings.json" 2>/dev/null)"
+    fi
+    # Reset any stale subagent state from a previous session with this ID.
+    [ -n "$SID" ] && rm -f "$AGENT_STATE_DIR/$SID" 2>/dev/null || true
+    ;;
+  SessionEnd)
+    EVENT_TYPE="session.end"
+    [ -n "$SID" ] && rm -f "$AGENT_STATE_DIR/$SID" 2>/dev/null || true
+    ;;
+  UserPromptSubmit)
+    EVENT_TYPE="prompt.submit"
+    ;;
+  PostToolUse)
+    # Claude Code's `Agent` tool is the subagent dispatcher. Emit a dedicated
+    # `agent.invoke` event so the HUD can populate the agents dashboard; all
+    # other tools still surface as `tool.use`.
+    if [ "$TOOL_NAME" = "Agent" ] && [ -n "$SUBAGENT_TYPE" ]; then
+      EVENT_TYPE="agent.invoke"
+      AGENT_NAME="$SUBAGENT_TYPE"
+      if [ -n "$SID" ]; then
+        printf '%s' "$SUBAGENT_TYPE" >"$AGENT_STATE_DIR/$SID" 2>/dev/null || true
+      fi
+    else
+      EVENT_TYPE="tool.use"
+    fi
+    ;;
+  Stop)
+    EVENT_TYPE="turn.stop"
+    ;;
+  SubagentStop)
+    EVENT_TYPE="agent.complete"
+    if [ -n "$SID" ] && [ -f "$AGENT_STATE_DIR/$SID" ]; then
+      AGENT_NAME="$(cat "$AGENT_STATE_DIR/$SID" 2>/dev/null || true)"
+      rm -f "$AGENT_STATE_DIR/$SID" 2>/dev/null || true
+    fi
+    [ -n "$AGENT_NAME" ] || AGENT_NAME="unknown"
+    ;;
+  PreCompact)
+    EVENT_TYPE="compact.start"
+    ;;
+  Notification)
+    bail "$HOOK_NAME" notification_unmapped
+    ;;
+  PreToolUse)
+    bail "$HOOK_NAME" pretooluse_unmapped
+    ;;
+  *)
+    bail "$HOOK_NAME" unsupported_hook
+    ;;
 esac
 
 NOW_MS="$(date +%s)000"
@@ -108,9 +180,14 @@ NOW_MS="$(date +%s)000"
 
 EVENT_JSON="$(printf '%s' "$PAYLOAD" | jq -c \
   --arg type "$EVENT_TYPE" \
-  --argjson now "$NOW_MS" '
+  --argjson now "$NOW_MS" \
+  --arg agentName "$AGENT_NAME" \
+  --arg agentDescription "$AGENT_DESC" \
+  --arg claudeCodeVersion "$CC_VERSION" \
+  --arg defaultModel "$CC_DEFAULT_MODEL" '
   def num(x): if (x|type) == "number" then x else null end;
   def str(x): if (x|type) == "string" and x != "" then x else null end;
+  def strArg(x): if (x|type) == "string" and x != "" then x else null end;
 
   . as $p
   | (str($p.session_id // $p.sessionId)) as $sid
@@ -142,19 +219,29 @@ EVENT_JSON="$(printf '%s' "$PAYLOAD" | jq -c \
       tokens: $tokens,
       costUsd: $cost,
       contextPct: $ctx,
-      durationMs: $duration
+      durationMs: $duration,
+      agentName: strArg($agentName),
+      agentDescription: strArg($agentDescription),
+      claudeCodeVersion: strArg($claudeCodeVersion),
+      defaultModel: strArg($defaultModel)
     }
   | with_entries(select(.value != null))
   | # Per-type field whitelist matches HudEventSchema (.strict).
-    if   $type == "session.start"  then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model"]                                              | index($k)))
+    if   $type == "session.start"  then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","claudeCodeVersion","defaultModel"]           | index($k)))
     elif $type == "session.end"    then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","tokens","costUsd","durationMs"]              | index($k)))
     elif $type == "prompt.submit"  then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model"]                                              | index($k)))
     elif $type == "tool.use"       then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","tool","toolInput","durationMs"]              | index($k)))
     elif $type == "turn.stop"      then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","tokens","costUsd","contextPct","durationMs"] | index($k)))
     elif $type == "compact.start"  then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model"]                                              | index($k)))
+    elif $type == "agent.invoke"   then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","agentName","agentDescription"]               | index($k)))
+    elif $type == "agent.complete" then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","agentName","tokens","costUsd","durationMs"]  | index($k)))
     else . end
   | # tool.use requires a tool field — fall back to "unknown" if hook omitted it.
     if $type == "tool.use" and (.tool // null) == null then .tool = "unknown" else . end
+  | # agent.* events require agentName.
+    if ($type == "agent.invoke" or $type == "agent.complete")
+       and (.agentName // null) == null
+       then .agentName = "unknown" else . end
 ')"
 
 [ -n "$EVENT_JSON" ] || bail "$EVENT_TYPE" jq_failed

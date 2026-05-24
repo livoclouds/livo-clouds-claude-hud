@@ -18,6 +18,8 @@ import turnStopOk from './fixtures/turn-stop-ok.json' with { type: 'json' };
 import turnStopError from './fixtures/turn-stop-error.json' with { type: 'json' };
 import compactStart from './fixtures/compact-start.json' with { type: 'json' };
 import compactEnd from './fixtures/compact-end.json' with { type: 'json' };
+import agentInvoke from './fixtures/agent-invoke.json' with { type: 'json' };
+import agentComplete from './fixtures/agent-complete.json' with { type: 'json' };
 import errorEvent from './fixtures/error.json' with { type: 'json' };
 
 const positives = [
@@ -30,6 +32,8 @@ const positives = [
   ['turn.stop (error)', turnStopError],
   ['compact.start', compactStart],
   ['compact.end', compactEnd],
+  ['agent.invoke', agentInvoke],
+  ['agent.complete', agentComplete],
   ['error', errorEvent],
 ] as const;
 
@@ -134,6 +138,49 @@ describe('HudEventSchema — negative parses', () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       expect(result.error.issues[0]?.path).toEqual(['sessionId']);
+    }
+  });
+
+  it('rejects agent.invoke missing agentName', () => {
+    const { agentName: _omit, ...payload } = agentInvoke;
+    const result = HudEventSchema.safeParse(payload);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['agentName']);
+    }
+  });
+
+  it('rejects agent.complete missing agentName', () => {
+    const { agentName: _omit, ...payload } = agentComplete;
+    const result = HudEventSchema.safeParse(payload);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.path).toEqual(['agentName']);
+    }
+  });
+});
+
+describe('HudEventSchema — optional fields', () => {
+  it('accepts session.start with claudeCodeVersion + defaultModel', () => {
+    const payload = {
+      ...sessionStart,
+      claudeCodeVersion: '2.1.150',
+      defaultModel: 'opus',
+    };
+    const result = HudEventSchema.safeParse(payload);
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === 'session.start') {
+      expect(result.data.claudeCodeVersion).toBe('2.1.150');
+      expect(result.data.defaultModel).toBe('opus');
+    }
+  });
+
+  it('accepts agent.complete with an error field', () => {
+    const payload = { ...agentComplete, error: 'agent crashed' };
+    const result = HudEventSchema.safeParse(payload);
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === 'agent.complete') {
+      expect(result.data.error).toBe('agent crashed');
     }
   });
 });
