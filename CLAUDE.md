@@ -248,7 +248,11 @@ livo-clouds-claude-hud/
 ├── packages/
 │   └── contracts/               # Zod schemas shared by hook + app
 └── hooks/
-    └── claude-hook.sh           # Drop-in script for ~/.claude/settings.json
+    ├── claude-hook.sh           # Drop-in script for ~/.claude/settings.json
+    └── sessions-poller.sh       # Sidecar daemon — feeds the Sessions panel
+                                 # by scanning ~/.claude/sessions/*.json.
+                                 # Auto-started by apps/hud/instrumentation.ts;
+                                 # opt out with HUD_DISABLE_POLLER=1.
 ```
 
 Workspaces via **pnpm**. Node ≥ 22. TypeScript `strict: true`.
