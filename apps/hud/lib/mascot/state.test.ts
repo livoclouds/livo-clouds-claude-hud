@@ -173,6 +173,50 @@ describe('deriveMascotState', () => {
       deriveMascotState({ recentEvents: [toolUse, turnStop], nowMs: 1_020 }),
     ).toBe('succeeded');
   });
+
+  // Regression: PR #26 added a `sessions.snapshot` branch in stateFromEvent
+  // that delegates back to derivePreCompactState. PR #30 made the poller
+  // emit `sessions.snapshot` events every 15s as a heartbeat, so the ring
+  // buffer fills with consecutive snapshots. Before the skip-list fix, the
+  // mascot derivation recursed mutually until the JS engine ran out of
+  // stack ("Maximum call stack size exceeded" RangeError in the browser).
+  it('does not recurse infinitely on a long run of sessions.snapshot events', () => {
+    const snapshots: MascotEnvelope[] = [];
+    for (let i = 0; i < 100; i += 1) {
+      snapshots.push({
+        id: `snap-${i}`,
+        event: {
+          type: 'sessions.snapshot',
+          ts: 1_000 + i,
+          sessions: [],
+        } as unknown as HudEvent,
+      });
+    }
+    expect(() =>
+      deriveMascotState({ recentEvents: snapshots, nowMs: 1_500 }),
+    ).not.toThrow();
+    expect(deriveMascotState({ recentEvents: snapshots, nowMs: 1_500 })).toBe(
+      'idle',
+    );
+  });
+
+  it('looks back through sessions.snapshot heartbeats to find the prior semantic event', () => {
+    const toolUse = envelope(
+      at(1_000, { type: 'tool.use', tool: 'Read' }),
+    );
+    const snap = (ts: number, n: number): MascotEnvelope => ({
+      id: `snap-${n}`,
+      event: {
+        type: 'sessions.snapshot',
+        ts,
+        sessions: [],
+      } as unknown as HudEvent,
+    });
+    const recentEvents = [toolUse, snap(1_005, 0), snap(1_010, 1), snap(1_015, 2)];
+    // classifyTool('Read') === 'thinking'; the lookback must skip the
+    // three trailing snapshots to surface the underlying tool.use.
+    expect(deriveMascotState({ recentEvents, nowMs: 1_020 })).toBe('thinking');
+  });
 });
 
 describe('classifyTool', () => {
