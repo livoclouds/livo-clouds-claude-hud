@@ -110,7 +110,19 @@ function derivePreCompactState(
   const start = Math.max(0, recentEvents.length - 1 - LOOKBACK_LIMIT);
   for (let i = recentEvents.length - 2; i >= start; i -= 1) {
     const prev = recentEvents[i]!.event;
-    if (prev.type === 'compact.end' || prev.type === 'compact.start') continue;
+    // Skip events that don't carry mascot semantics. `compact.*` defer to
+    // a pre-compact lookup themselves and `sessions.snapshot` is a poller
+    // heartbeat that also delegates back here. Stopping on either would
+    // re-enter stateFromEvent → derivePreCompactState in an unbounded
+    // mutual recursion whenever the ring buffer is dominated by snapshots
+    // (the poller emits one every 15 s as a heartbeat).
+    if (
+      prev.type === 'compact.end' ||
+      prev.type === 'compact.start' ||
+      prev.type === 'sessions.snapshot'
+    ) {
+      continue;
+    }
     if (nowMs - prev.ts > IDLE_TIMEOUT_MS) return 'idle';
     return stateFromEvent(prev, nowMs, recentEvents);
   }
