@@ -10,5 +10,7 @@ export {
   type TurnStopEvent,
   type CompactStartEvent,
   type CompactEndEvent,
+  type AgentInvokeEvent,
+  type AgentCompleteEvent,
   type HudErrorEvent,
 } from './event';

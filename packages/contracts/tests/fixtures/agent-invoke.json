@@ -1,0 +1,9 @@
+{
+  "type": "agent.invoke",
+  "sessionId": "01HRZX7K3GQ8V5N0B4WJ2P3Y6E",
+  "cwd": "/Users/dev/Code/example-repo",
+  "model": "claude-opus-4-7",
+  "ts": 1748534455000,
+  "agentName": "Explore",
+  "agentDescription": "Explore the mascot module"
+}

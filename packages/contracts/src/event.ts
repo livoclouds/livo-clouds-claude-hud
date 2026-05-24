@@ -16,6 +16,7 @@ const tokens = z
 const costUsd = z.number().nonnegative();
 const contextPct = z.number().min(0).max(100);
 const durationMs = z.number().int().nonnegative();
+const agentName = z.string().min(1);
 
 const SessionStart = z
   .object({
@@ -24,6 +25,12 @@ const SessionStart = z
     ts,
     cwd,
     model,
+    // Claude Code runtime metadata, captured by the hook script from
+    // CLAUDE_CODE_EXECPATH and ~/.claude/settings.json respectively. Both are
+    // optional because older hook scripts (and synthetic test events) may not
+    // provide them.
+    claudeCodeVersion: z.string().min(1).optional(),
+    defaultModel: z.string().min(1).optional(),
   })
   .strict();
 
@@ -98,6 +105,41 @@ const CompactEnd = z
   })
   .strict();
 
+// Subagent lifecycle. AgentInvoke is emitted when Claude Code's `PostToolUse`
+// hook fires with `tool_name == "Agent"`; AgentComplete is emitted on the
+// `SubagentStop` hook (distinct from the parent-turn `Stop`). This is what
+// powers the live agents dashboard in the HUD.
+const AgentInvoke = z
+  .object({
+    type: z.literal('agent.invoke'),
+    sessionId,
+    ts,
+    cwd,
+    model,
+    agentName,
+    agentDescription: z.string().min(1).optional(),
+    // CSS color name from the agent definition's frontmatter. Optional —
+    // the hook script does not parse frontmatter today; the HUD falls back to
+    // a built-in color map and then to status colors.
+    agentColor: z.string().min(1).optional(),
+  })
+  .strict();
+
+const AgentComplete = z
+  .object({
+    type: z.literal('agent.complete'),
+    sessionId,
+    ts,
+    cwd,
+    model,
+    agentName,
+    tokens: tokens.optional(),
+    costUsd: costUsd.optional(),
+    durationMs: durationMs.optional(),
+    error: z.string().min(1).optional(),
+  })
+  .strict();
+
 const ErrorEvent = z
   .object({
     type: z.literal('error'),
@@ -118,6 +160,8 @@ export const HudEventSchema = z.discriminatedUnion('type', [
   TurnStop,
   CompactStart,
   CompactEnd,
+  AgentInvoke,
+  AgentComplete,
   ErrorEvent,
 ]);
 
@@ -129,6 +173,8 @@ export const HudEventTypes = [
   'turn.stop',
   'compact.start',
   'compact.end',
+  'agent.invoke',
+  'agent.complete',
   'error',
 ] as const;
 
@@ -142,4 +188,6 @@ export type ToolUseEvent = Extract<HudEvent, { type: 'tool.use' }>;
 export type TurnStopEvent = Extract<HudEvent, { type: 'turn.stop' }>;
 export type CompactStartEvent = Extract<HudEvent, { type: 'compact.start' }>;
 export type CompactEndEvent = Extract<HudEvent, { type: 'compact.end' }>;
+export type AgentInvokeEvent = Extract<HudEvent, { type: 'agent.invoke' }>;
+export type AgentCompleteEvent = Extract<HudEvent, { type: 'agent.complete' }>;
 export type HudErrorEvent = Extract<HudEvent, { type: 'error' }>;

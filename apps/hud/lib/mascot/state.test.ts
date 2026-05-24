@@ -143,6 +143,29 @@ describe('deriveMascotState', () => {
     );
   });
 
+  it('maps agent.invoke → running', () => {
+    const e = envelope(at(1_000, { type: 'agent.invoke', agentName: 'Explore' }));
+    expect(deriveMascotState({ recentEvents: [e], nowMs: 1_001 })).toBe(
+      'running',
+    );
+  });
+
+  it('maps agent.complete (no error) → succeeded', () => {
+    const e = envelope(at(1_000, { type: 'agent.complete', agentName: 'Explore' }));
+    expect(deriveMascotState({ recentEvents: [e], nowMs: 1_001 })).toBe(
+      'succeeded',
+    );
+  });
+
+  it('maps agent.complete with error → errored', () => {
+    const e = envelope(
+      at(1_000, { type: 'agent.complete', agentName: 'Plan', error: 'boom' }),
+    );
+    expect(deriveMascotState({ recentEvents: [e], nowMs: 1_001 })).toBe(
+      'errored',
+    );
+  });
+
   it('latest event wins on back-to-back conflicting events', () => {
     const toolUse = envelope(at(1_000, { type: 'tool.use', tool: 'Bash' }));
     const turnStop = envelope(at(1_010, { type: 'turn.stop' }));
