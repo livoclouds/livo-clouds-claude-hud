@@ -558,7 +558,7 @@
             </div>
           </li>
 
-          <li class="phase" data-phase-progress="0" data-phase-status="pending" data-finding-count="3">
+          <li class="phase" data-phase-progress="100" data-phase-status="completed" data-finding-count="3">
             <div class="phase-head">
               <div style="flex: 1; min-width: 240px">
                 <div class="phase-num">Phase 3</div>
@@ -566,26 +566,29 @@
               </div>
               <div class="phase-meta">
                 <span class="badge high">High</span>
-                <span class="status" data-status="pending">Pending</span>
+                <span class="status" data-status="completed">Completed</span>
               </div>
             </div>
             <p class="phase-detail">
-              O(1) replay via a parallel index map, liveness tracking for SSE
-              subscribers, and a snapshot cap that shrinks the initial SSR
-              payload by ~150 KB.
+              O(1) <code>replaySince</code> via a parallel <code>idIndex</code>
+              map with correct eviction on ring wrap-around (H1). Zombie
+              subscriber pruning via per-subscriber <code>lastDeliveryTs</code>
+              tracking and a 60 s sweep timer, with a warning above 50 active
+              subscribers (H3). H6 (<code>snapshot(limit)</code>) was completed
+              by Phase 2 before this phase shipped.
             </p>
             <div class="findings-list">
               <span class="finding-chip">H1</span>
               <span class="finding-chip">H3</span>
-              <span class="finding-chip">H6 (if pending)</span>
+              <span class="finding-chip">H6 (completed by Phase 2)</span>
             </div>
             <div class="phase-progress">
-              <div class="bar-track"><div class="bar-fill" style="width: 0%"></div></div>
-              <div class="phase-pct">0%</div>
+              <div class="bar-track"><div class="bar-fill" style="width: 100%"></div></div>
+              <div class="phase-pct">100%</div>
             </div>
             <div class="phase-actions">
               <a href="./phases/phase-3-server-and-bus.md">Phase notes →</a>
-              <span style="color: var(--fg-mute)">No PR yet</span>
+              <span style="color: var(--fg-mute)">Local changes pending PR</span>
             </div>
           </li>
 
@@ -707,7 +710,7 @@
         <code>blocked</code>, and replace the "No PR yet" span with a link.
         The script at the bottom recomputes everything on load.
         <br /><br />
-        Last regenerated: <span id="lastUpdated">2026-05-24 (Phase 1 completed)</span>.
+        Last regenerated: <span id="lastUpdated">2026-05-24 (Phase 3 completed — H1 O(1) index, H3 zombie sweep)</span>.
       </footer>
     </div>
 
