@@ -13,7 +13,7 @@
 #   error [message]          Send an error event
 #
 # Environment:
-#   HUD_INGEST_URL   default http://localhost:3000/api/events
+#   HUD_INGEST_URL   default http://localhost:4000/api/events
 #   HUD_INGEST_TOKEN required; if unset, read from apps/hud/.env.local
 #
 # The script caches a session id in $TMPDIR/hud-synth-session so successive
@@ -21,7 +21,7 @@
 
 set -euo pipefail
 
-INGEST_URL="${HUD_INGEST_URL:-http://localhost:3000/api/events}"
+INGEST_URL="${HUD_INGEST_URL:-http://localhost:4000/api/events}"
 
 resolve_token() {
   if [[ -n "${HUD_INGEST_TOKEN:-}" ]]; then

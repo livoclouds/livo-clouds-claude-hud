@@ -37,7 +37,8 @@ the user's Mac).
   proxies better, and reconnects automatically.
 - **Auth**: Shared secret in `Authorization: Bearer ${HUD_INGEST_TOKEN}` header on every
   hook POST. Never expose ingest endpoints without the token.
-- **Local-only by default**: bind to `0.0.0.0:3000` on the LAN; document a Tailscale
+- **Local-only by default**: bind to `0.0.0.0:4000` on the LAN (override with the
+  `HUD_PORT` env var if `4000` is already in use); document a Tailscale
   setup for remote access. Never deploy the ingest endpoint to a public origin without
   rate-limiting and rotated tokens.
 

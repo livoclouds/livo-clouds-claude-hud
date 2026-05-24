@@ -50,7 +50,7 @@ mkdir -p ~/.claude
 TOKEN=$(grep '^HUD_INGEST_TOKEN=' apps/hud/.env.local | cut -d= -f2)
 cat > ~/.claude/livo-clouds-hud.env <<EOF
 HUD_INGEST_TOKEN=$TOKEN
-HUD_URL=http://127.0.0.1:3000
+HUD_URL=http://127.0.0.1:4000
 EOF
 chmod 600 ~/.claude/livo-clouds-hud.env
 ```
@@ -59,7 +59,7 @@ Optional keys:
 
 | Key              | Default                  | Purpose                                          |
 | ---------------- | ------------------------ | ------------------------------------------------ |
-| `HUD_URL`        | `http://127.0.0.1:3000`  | Base URL of the running HUD (no trailing path)   |
+| `HUD_URL`        | `http://127.0.0.1:4000`  | Base URL of the running HUD (no trailing path)   |
 | `HUD_HOOK_LOG`   | `~/.claude/hud-hook.log` | Where the hook writes diagnostic lines           |
 | `HUD_TIMEOUT_MS` | `250`                    | Per-request budget; over this, hook logs + exits |
 
@@ -102,7 +102,7 @@ In another, subscribe to the live stream:
 
 ```sh
 TOKEN=$(grep '^HUD_INGEST_TOKEN=' apps/hud/.env.local | cut -d= -f2)
-curl -N -H "Authorization: Bearer $TOKEN" http://127.0.0.1:3000/api/stream
+curl -N -H "Authorization: Bearer $TOKEN" http://127.0.0.1:4000/api/stream
 ```
 
 In a third, start any Claude Code session (`claude` in any project). The SSE
@@ -145,7 +145,7 @@ Install `curl` for your platform.
 ### `hud_unreachable` in the log
 
 The HUD is not listening at `HUD_URL`. Start `pnpm dev`, or check that
-nothing else is squatting on port 3000. The hook still exited 0, so Claude
+nothing else is squatting on port 4000. The hook still exited 0, so Claude
 Code was not blocked.
 
 ### `status=401` in the log
