@@ -1,0 +1,339 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import { useHud, useHudHydrated } from './HudProvider';
+import { usePinnedCodeSessions } from '@/lib/pins';
+import type { HudCodeSession } from '@/lib/store';
+import { basename, relativeTime, truncate } from '@/lib/format';
+
+// Status buckets in the order the terminal `/agents` view renders them.
+// `awaiting_input` and `idle` (the Claude Code waiting-for-user state) are
+// merged into a single bucket. `busy` / `working` / `shell` collapse into
+// the active bucket. Anything we don't recognize falls into Completed so
+// the user still sees the entry — silently dropping unknown statuses is
+// worse than misclassifying them by one bucket.
+type Bucket = 'awaiting' | 'working' | 'completed';
+
+function bucketFor(status: string): Bucket {
+  const s = status.toLowerCase();
+  if (s === 'busy' || s === 'working' || s === 'running' || s === 'shell') return 'working';
+  if (s === 'awaiting_input' || s === 'awaiting' || s === 'idle' || s === 'waiting') return 'awaiting';
+  return 'completed';
+}
+
+const BUCKET_LABEL: Record<Bucket, string> = {
+  awaiting: 'Awaiting input',
+  working: 'Working',
+  completed: 'Completed',
+};
+
+const BUCKET_DOT: Record<Bucket, string> = {
+  awaiting: 'var(--color-hud-accent)',
+  working: 'var(--color-hud-warn)',
+  completed: 'var(--color-hud-success)',
+};
+
+const BUCKET_HEADER_COLOR: Record<Bucket, string> = {
+  awaiting: 'var(--color-hud-accent)',
+  working: 'var(--color-hud-warn)',
+  completed: 'var(--color-hud-success)',
+};
+
+function sortByUpdated(a: HudCodeSession, b: HudCodeSession): number {
+  return b.updatedAt - a.updatedAt;
+}
+
+function PinButton({
+  pinned,
+  onToggle,
+  sessionName,
+}: {
+  pinned: boolean;
+  onToggle: () => void;
+  sessionName: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      aria-label={pinned ? `Unpin ${sessionName}` : `Pin ${sessionName}`}
+      title={pinned ? 'Unpin' : 'Pin'}
+      className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[color:var(--color-hud-fg-muted)] hover:text-[color:var(--color-hud-fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
+      style={pinned ? { color: 'var(--color-hud-accent)' } : undefined}
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill={pinned ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M12 17v5" />
+        <path d="M5 17h14l-2-5V5H7v7l-2 5Z" />
+      </svg>
+    </button>
+  );
+}
+
+function SessionCardRow({
+  session,
+  bucket,
+  pinned,
+  onPinToggle,
+  now,
+  hydrated,
+}: {
+  session: HudCodeSession;
+  bucket: Bucket;
+  pinned: boolean;
+  onPinToggle: () => void;
+  now: number;
+  hydrated: boolean;
+}) {
+  const dot = BUCKET_DOT[bucket];
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -6 }}
+      transition={{ duration: 0.16 }}
+      data-no-swipe="true"
+      className="flex items-start gap-3 rounded-md px-2 py-2 transition-colors hover:bg-[color:color-mix(in_srgb,var(--color-hud-accent)_10%,transparent)]"
+    >
+      <span
+        aria-hidden
+        className={bucket === 'working' ? 'animate-pulse' : ''}
+        style={{
+          display: 'inline-block',
+          width: 8,
+          height: 8,
+          marginTop: 7,
+          borderRadius: 999,
+          background: dot,
+          boxShadow:
+            bucket === 'working'
+              ? `0 0 8px ${dot}`
+              : `0 0 3px color-mix(in srgb, ${dot} 50%, transparent)`,
+          flex: 'none',
+        }}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span
+            className="hud-fg font-mono text-sm leading-tight"
+            title={session.name}
+          >
+            {truncate(session.name, 38)}
+          </span>
+          {session.kind && session.kind !== 'fg' && (
+            <span
+              className="hud-fg-muted rounded-full px-1.5 text-[10px] font-medium uppercase tracking-wide"
+              style={{ background: 'var(--color-hud-card-bg)' }}
+              title={`kind: ${session.kind}`}
+            >
+              {session.kind}
+            </span>
+          )}
+        </div>
+        <div className="mt-0.5 flex items-center gap-2 text-[11px]">
+          <span className="hud-fg-muted font-mono" title={session.cwd}>
+            {truncate(basename(session.cwd), 26)}
+          </span>
+          <span className="hud-fg-muted">·</span>
+          <span className="hud-fg-muted">
+            {hydrated ? relativeTime(session.updatedAt, now) : '…'}
+          </span>
+        </div>
+      </div>
+      <PinButton pinned={pinned} onToggle={onPinToggle} sessionName={session.name} />
+    </motion.div>
+  );
+}
+
+function BucketSection({
+  bucket,
+  sessions,
+  pinnedSet,
+  togglePin,
+  now,
+  hydrated,
+}: {
+  bucket: Bucket;
+  sessions: ReadonlyArray<HudCodeSession>;
+  pinnedSet: ReadonlySet<string>;
+  togglePin: (sessionId: string) => void;
+  now: number;
+  hydrated: boolean;
+}) {
+  if (sessions.length === 0) return null;
+  return (
+    <section>
+      <p
+        className="text-[10px] uppercase tracking-wider"
+        style={{ color: BUCKET_HEADER_COLOR[bucket] }}
+      >
+        {BUCKET_LABEL[bucket]} · {sessions.length}
+      </p>
+      <div className="mt-1 flex flex-col">
+        <AnimatePresence initial={false}>
+          {sessions.map((s) => (
+            <SessionCardRow
+              key={s.sessionId}
+              session={s}
+              bucket={bucket}
+              pinned={pinnedSet.has(s.sessionId)}
+              onPinToggle={() => togglePin(s.sessionId)}
+              now={now}
+              hydrated={hydrated}
+            />
+          ))}
+        </AnimatePresence>
+      </div>
+    </section>
+  );
+}
+
+export function SessionsDashboard() {
+  const codeSessions = useHud((s) => s.codeSessions);
+  const codeSessionsUpdatedAt = useHud((s) => s.codeSessionsUpdatedAt);
+  const defaultModel = useHud((s) => s.defaultModel);
+  const hydrated = useHudHydrated();
+  const { pins, toggle } = usePinnedCodeSessions();
+  const [now, setNow] = useState(() => Date.now());
+
+  // Bump every 30s so relative timestamps refresh without burning CPU.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const { pinned, awaiting, working, completed, counts } = useMemo(() => {
+    const all = Object.values(codeSessions);
+    const pin: HudCodeSession[] = [];
+    const aw: HudCodeSession[] = [];
+    const wk: HudCodeSession[] = [];
+    const co: HudCodeSession[] = [];
+    for (const s of all) {
+      const b = bucketFor(s.status);
+      // Pre-hydration pins are an empty set, so everything goes into its
+      // normal bucket and the server/client HTML matches.
+      if (hydrated && pins.has(s.sessionId)) {
+        pin.push(s);
+      } else if (b === 'awaiting') aw.push(s);
+      else if (b === 'working') wk.push(s);
+      else co.push(s);
+    }
+    pin.sort(sortByUpdated);
+    aw.sort(sortByUpdated);
+    wk.sort(sortByUpdated);
+    co.sort(sortByUpdated);
+    return {
+      pinned: pin,
+      awaiting: aw,
+      working: wk,
+      completed: co,
+      counts: { awaiting: aw.length, working: wk.length, completed: co.length, total: all.length },
+    };
+  }, [codeSessions, pins, hydrated]);
+
+  const isEmpty = counts.total === 0 && pinned.length === 0;
+  const stale =
+    codeSessionsUpdatedAt !== null && hydrated && now - codeSessionsUpdatedAt > 30_000;
+
+  return (
+    <div className="hud-card p-6">
+      <div className="flex items-baseline justify-between gap-4">
+        <p className="hud-fg-muted text-xs uppercase tracking-wider">Sessions</p>
+        <div className="hud-fg-muted flex items-center gap-2 text-[11px] font-mono">
+          {!isEmpty && (
+            <span aria-label="counts">
+              {counts.awaiting} awaiting · {counts.working} working · {counts.completed} completed
+            </span>
+          )}
+          {defaultModel && (
+            <>
+              <span aria-hidden>·</span>
+              <span title="Default model">default {defaultModel}</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {isEmpty ? (
+        <p className="hud-fg-muted mt-4 text-sm">
+          {codeSessionsUpdatedAt === null
+            ? 'Waiting for sessions snapshot from the poller…'
+            : 'No active Claude Code sessions.'}
+        </p>
+      ) : (
+        <div className="mt-4 space-y-3">
+          {pinned.length > 0 && (
+            <section>
+              <p className="hud-fg-muted text-[10px] uppercase tracking-wider">
+                Pinned · {pinned.length}
+              </p>
+              <div className="mt-1 flex flex-col">
+                <AnimatePresence initial={false}>
+                  {pinned.map((s) => (
+                    <SessionCardRow
+                      key={s.sessionId}
+                      session={s}
+                      bucket={bucketFor(s.status)}
+                      pinned
+                      onPinToggle={() => toggle(s.sessionId)}
+                      now={now}
+                      hydrated={hydrated}
+                    />
+                  ))}
+                </AnimatePresence>
+              </div>
+            </section>
+          )}
+          <BucketSection
+            bucket="awaiting"
+            sessions={awaiting}
+            pinnedSet={pins}
+            togglePin={toggle}
+            now={now}
+            hydrated={hydrated}
+          />
+          <BucketSection
+            bucket="working"
+            sessions={working}
+            pinnedSet={pins}
+            togglePin={toggle}
+            now={now}
+            hydrated={hydrated}
+          />
+          <BucketSection
+            bucket="completed"
+            sessions={completed}
+            pinnedSet={pins}
+            togglePin={toggle}
+            now={now}
+            hydrated={hydrated}
+          />
+        </div>
+      )}
+
+      {stale && (
+        <p
+          className="mt-3 text-[10px] uppercase tracking-wider"
+          style={{ color: 'var(--color-hud-warn)' }}
+          title={`Last snapshot ${relativeTime(codeSessionsUpdatedAt!, now)}`}
+        >
+          ⚠ Sessions data stale — is the poller running?
+        </p>
+      )}
+    </div>
+  );
+}

@@ -21,6 +21,7 @@ import compactEnd from './fixtures/compact-end.json' with { type: 'json' };
 import agentInvoke from './fixtures/agent-invoke.json' with { type: 'json' };
 import agentComplete from './fixtures/agent-complete.json' with { type: 'json' };
 import errorEvent from './fixtures/error.json' with { type: 'json' };
+import sessionsSnapshot from './fixtures/sessions-snapshot.json' with { type: 'json' };
 
 const positives = [
   ['session.start', sessionStart],
@@ -35,6 +36,7 @@ const positives = [
   ['agent.invoke', agentInvoke],
   ['agent.complete', agentComplete],
   ['error', errorEvent],
+  ['sessions.snapshot', sessionsSnapshot],
 ] as const;
 
 describe('HudEventSchema — positive parses', () => {
@@ -192,6 +194,34 @@ describe('HudEventSchema — optional fields', () => {
       expect(typeof result.data.prompt).toBe('string');
       expect(result.data.prompt!.length).toBeGreaterThan(0);
     }
+  });
+
+  it('sessions.snapshot carries an array of CodeSessionInfo entries', () => {
+    const result = HudEventSchema.safeParse(sessionsSnapshot);
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === 'sessions.snapshot') {
+      expect(result.data.sessions.length).toBe(2);
+      expect(result.data.sessions[0]!.name).toBe('Edit bank profile - popup');
+      expect(result.data.sessions[0]!.status).toBe('busy');
+      expect(result.data.sessions[1]!.kind).toBe('fg');
+    }
+  });
+
+  it('sessions.snapshot accepts an empty sessions array', () => {
+    const payload = { type: 'sessions.snapshot', ts: 1779608000000, sessions: [] };
+    const result = HudEventSchema.safeParse(payload);
+    expect(result.success).toBe(true);
+  });
+
+  it('sessions.snapshot rejects a session entry missing name', () => {
+    const broken = {
+      ...sessionsSnapshot,
+      sessions: [
+        { ...sessionsSnapshot.sessions[0], name: undefined },
+      ],
+    };
+    const result = HudEventSchema.safeParse(broken);
+    expect(result.success).toBe(false);
   });
 });
 

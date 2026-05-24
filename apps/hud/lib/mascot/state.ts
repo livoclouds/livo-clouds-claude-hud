@@ -93,6 +93,11 @@ function stateFromEvent(
       return event.error ? 'errored' : 'succeeded';
     case 'error':
       return 'errored';
+    case 'sessions.snapshot':
+      // Heartbeat from the sidecar poller — has no semantic meaning for the
+      // mascot. Fall back to whatever the session was doing before; if the
+      // snapshot is the only event, return idle.
+      return derivePreCompactState(recentEvents, nowMs);
   }
 }
 

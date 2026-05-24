@@ -170,6 +170,61 @@ describe('reduce — agent.complete', () => {
   });
 });
 
+describe('reduce — sessions.snapshot', () => {
+  function snapshotEvent(ts: number, sessions: Array<Record<string, unknown>>): HudEvent {
+    return { type: 'sessions.snapshot', ts, sessions } as unknown as HudEvent;
+  }
+
+  const SAMPLE = {
+    pid: 11131,
+    sessionId: 'sess-1',
+    name: 'Edit bank profile',
+    cwd: '/repo',
+    status: 'busy',
+    kind: 'bg',
+    agent: 'claude',
+    version: '2.1.150',
+    startedAt: 1000,
+    updatedAt: 2000,
+  };
+
+  it('populates codeSessions keyed by sessionId on the first snapshot', () => {
+    const s = reduce(EMPTY_STATE, env(snapshotEvent(5_000, [SAMPLE])));
+    expect(s.codeSessions['sess-1']).toMatchObject({ name: 'Edit bank profile', status: 'busy' });
+    expect(s.codeSessionsUpdatedAt).toBe(5_000);
+  });
+
+  it('replaces the map wholesale so removed sessions disappear', () => {
+    let s = reduce(
+      EMPTY_STATE,
+      env(snapshotEvent(5_000, [SAMPLE, { ...SAMPLE, sessionId: 'sess-2', name: 'Plan task' }])),
+    );
+    expect(Object.keys(s.codeSessions).sort()).toEqual(['sess-1', 'sess-2']);
+
+    s = reduce(s, env(snapshotEvent(6_000, [SAMPLE])));
+    expect(Object.keys(s.codeSessions)).toEqual(['sess-1']);
+    expect(s.codeSessions['sess-2']).toBeUndefined();
+    expect(s.codeSessionsUpdatedAt).toBe(6_000);
+  });
+
+  it('does NOT bump lastActivityAt — the snapshot is a passive heartbeat', () => {
+    const s0 = startSession();
+    expect(s0.lastActivityAt).toBe(1_000);
+    const s1 = reduce(s0, env(snapshotEvent(9_999, [SAMPLE])));
+    expect(s1.lastActivityAt).toBe(1_000);
+  });
+
+  it('does not touch session/agents/currentAgent state', () => {
+    let s = startSession();
+    s = reduce(s, env(at(2_000, { type: 'agent.invoke', agentName: 'Explore' })));
+    const before = { session: s.session, agents: s.agents, currentAgent: s.currentAgent };
+    s = reduce(s, env(snapshotEvent(9_000, [SAMPLE])));
+    expect(s.session).toEqual(before.session);
+    expect(s.agents).toEqual(before.agents);
+    expect(s.currentAgent).toBe(before.currentAgent);
+  });
+});
+
 describe('reduce — replay via reduceAll', () => {
   it('reconstructs the full agent state from a stream of envelopes', () => {
     const stream: HudEnvelope[] = [
