@@ -69,3 +69,60 @@ Return to **Step 5** to re-check `gh pr view --json mergeable,mergeStateStatus`.
 The loop is: resolve → typecheck → push → Step 5 → if still conflicting → resolve again.
 
 Maximum 3 resolution attempts before stopping and escalating to the user.
+
+---
+
+## § Escalation After 3 Failed Attempts
+
+If the conflict loop has run 3 times and the PR is still `CONFLICTING`, execute the following escalation procedure instead of retrying.
+
+### Step 1 — Abort the in-progress merge
+
+```bash
+git merge --abort
+```
+
+This restores the branch to the clean state before the last merge attempt.
+
+### Step 2 — Push the clean branch state
+
+```bash
+git push --force-with-lease origin <branch-name>
+```
+
+`--force-with-lease` is safe here: it only pushes if the remote branch matches what we last fetched, preventing accidental overwrites. This is the one approved force-push scenario in this skill.
+
+### Step 3 — Convert PR to draft
+
+```bash
+gh pr ready <PR_NUMBER> --undo
+```
+
+This signals to the reviewer that manual intervention is needed before merge.
+
+### Step 4 — Output recovery checklist
+
+Report the following block verbatim, filling in the placeholders:
+
+```
+⛔ Conflict escalation after 3 failed attempts
+
+Branch    : <branch-name>
+PR        : #<PR_NUMBER> (converted to draft)
+Conflicts : <list of files that could not be resolved automatically>
+
+Manual resolution required. Steps for the user:
+
+1. git fetch origin
+2. git checkout <branch-name>
+3. git merge origin/main
+4. Resolve conflicts in the listed files (see "When to Stop and Ask" above)
+5. git add <resolved-files>
+6. pnpm -w typecheck
+7. git commit -m "Resolve merge conflicts with main"
+8. git push origin <branch-name>
+9. gh pr ready <PR_NUMBER>   # mark PR ready when done
+10. Re-run /agent-git-finalize to complete the merge flow
+```
+
+Do not attempt any further automated merge steps. Wait for the user to complete the manual resolution and explicitly re-invoke the skill.
