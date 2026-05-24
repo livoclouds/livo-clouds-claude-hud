@@ -9,13 +9,15 @@ import { ContextRing } from './ContextRing';
 import { AgentsDashboard } from './AgentsDashboard';
 import { SessionsDashboard } from './SessionsDashboard';
 import { AgentDetailSheetProvider } from './AgentDetailSheet';
+import { SessionDetailSheetProvider } from './SessionDetailSheet';
 import { ErrorPill } from './ErrorPill';
 
 export function LiveView() {
   return (
     <MetricSheetProvider>
       <AgentDetailSheetProvider>
-        <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10">
+        <SessionDetailSheetProvider>
+          <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10">
           <ErrorPill />
 
           <section className="flex justify-center py-2">
@@ -49,7 +51,8 @@ export function LiveView() {
           <section>
             <AgentsDashboard />
           </section>
-        </main>
+          </main>
+        </SessionDetailSheetProvider>
       </AgentDetailSheetProvider>
     </MetricSheetProvider>
   );
