@@ -8,33 +8,36 @@ import type { HudCodeSession } from '@/lib/store';
 import { basename, relativeTime, truncate } from '@/lib/format';
 
 // Status buckets in the order the terminal `/agents` view renders them.
-// `awaiting_input` and `idle` (the Claude Code waiting-for-user state) are
-// merged into a single bucket. `busy` / `working` / `shell` collapse into
-// the active bucket. Anything we don't recognize falls into Completed so
-// the user still sees the entry — silently dropping unknown statuses is
-// worse than misclassifying them by one bucket.
 type Bucket = 'awaiting' | 'working' | 'completed';
 
-// Idle threshold beyond which a session is shown as "Completed" regardless
-// of its on-disk `status` value. Claude Code never writes `status:
-// "completed"` to ~/.claude/sessions/<pid>.json — that bucket in the
-// terminal `/agents` view is computed from the per-session JSONL mtime,
-// which is what the poller surfaces as `lastActivityAt`. 5 minutes
-// matches what the terminal does subjectively.
+// Fallback idle threshold for "orphan" sessions that have no daemon
+// state.json (those don't carry a semantic state field, so we fall back to
+// the JSONL mtime heuristic).
 const COMPLETED_THRESHOLD_MS = 5 * 60 * 1000;
 
 function bucketFor(session: HudCodeSession, now: number): Bucket {
-  // Prefer the JSONL mtime (touched on every event) over the session
-  // file's `updatedAt` (only touched on lifecycle transitions).
-  const lastActivity = session.lastActivityAt ?? session.updatedAt;
-  if (now - lastActivity > COMPLETED_THRESHOLD_MS) return 'completed';
   const s = session.status.toLowerCase();
-  if (s === 'busy' || s === 'working' || s === 'running' || s === 'shell') return 'working';
+  // Authoritative Claude Code daemon states from
+  // ~/.claude/jobs/<short>/state.json. The terminal `/agents` view buckets
+  // from these and the HUD matches that mapping 1:1.
+  if (s === 'blocked') return 'awaiting';
+  if (s === 'working') return 'working';
+  if (s === 'done') return 'completed';
+  // Legacy OS-level session.json statuses for orphan sessions that have no
+  // daemon state.json yet (very new sessions, or non-daemon ones).
+  if (s === 'busy' || s === 'running' || s === 'shell') return 'working';
   if (s === 'awaiting_input' || s === 'awaiting' || s === 'idle' || s === 'waiting') return 'awaiting';
-  return 'completed';
+  // Final fallback: a session we can't classify but whose JSONL has been
+  // silent for >5 min is treated as Completed.
+  const lastActivity = session.lastActivityAt ?? session.updatedAt;
+  if (lastActivity > 0 && now - lastActivity > COMPLETED_THRESHOLD_MS) return 'completed';
+  return 'awaiting';
 }
 
 const BUCKET_LABEL: Record<Bucket, string> = {
+  // The terminal `/agents` header says "N awaiting input" but the section
+  // heading is just "Pinned" — pinned sessions are the ones counted as
+  // awaiting input. We follow the section convention here.
   awaiting: 'Awaiting input',
   working: 'Working',
   completed: 'Completed',
@@ -170,6 +173,14 @@ function SessionCardRow({
               : '…'}
           </span>
         </div>
+        {session.detail && (
+          <p
+            className="hud-fg-muted mt-1 text-[11px] leading-snug"
+            title={session.detail}
+          >
+            {truncate(session.detail, 110)}
+          </p>
+        )}
       </div>
       <PinButton pinned={pinned} onToggle={onPinToggle} sessionName={session.name} />
     </motion.div>
@@ -239,28 +250,45 @@ export function SessionsDashboard() {
   const { pinned, awaiting, working, completed, counts } = useMemo(() => {
     const all = Object.values(codeSessions);
     const pin: HudCodeSession[] = [];
+    const pinIds = new Set<string>();
     const aw: HudCodeSession[] = [];
     const wk: HudCodeSession[] = [];
     const co: HudCodeSession[] = [];
+    // Pass 1: bucket every session by its real semantic state and ALSO
+    // collect the pinned subset. A session is pinned if EITHER Claude
+    // Code pinned it (~/.claude/jobs/pins.json) OR the user pinned it
+    // from inside the HUD (localStorage). The header counts reflect the
+    // real categories (so a pinned-and-blocked session contributes to
+    // "awaiting"); the section render below excludes pinned items from
+    // the bucket sections to avoid showing them twice.
     for (const s of all) {
       const b = bucketFor(s, now);
-      // Pre-hydration pins are an empty set, so everything goes into its
-      // normal bucket and the server/client HTML matches.
-      if (hydrated && pins.has(s.sessionId)) {
+      const pinnedHere = hydrated && pins.has(s.sessionId);
+      const pinnedThere = s.pinnedByClaudeCode === true;
+      if (pinnedHere || pinnedThere) {
         pin.push(s);
-      } else if (b === 'awaiting') aw.push(s);
+        pinIds.add(s.sessionId);
+      }
+      if (b === 'awaiting') aw.push(s);
       else if (b === 'working') wk.push(s);
       else co.push(s);
     }
+    // Section arrays: bucket lists minus the pinned ones (those render in
+    // the Pinned section instead).
+    const filterUnpinned = (arr: HudCodeSession[]) =>
+      arr.filter((s) => !pinIds.has(s.sessionId));
+    const awSection = filterUnpinned(aw);
+    const wkSection = filterUnpinned(wk);
+    const coSection = filterUnpinned(co);
     pin.sort(sortByUpdated);
-    aw.sort(sortByUpdated);
-    wk.sort(sortByUpdated);
-    co.sort(sortByUpdated);
+    awSection.sort(sortByUpdated);
+    wkSection.sort(sortByUpdated);
+    coSection.sort(sortByUpdated);
     return {
       pinned: pin,
-      awaiting: aw,
-      working: wk,
-      completed: co,
+      awaiting: awSection,
+      working: wkSection,
+      completed: coSection,
       counts: { awaiting: aw.length, working: wk.length, completed: co.length, total: all.length },
     };
   }, [codeSessions, pins, hydrated, now]);
