@@ -2,6 +2,7 @@ import './globals.css';
 import type { ReactNode } from 'react';
 import type { Metadata, Viewport } from 'next';
 import { bus } from '@/lib/bus';
+import { bootstrapSessionsSnapshot } from '@/lib/sessions-bootstrap';
 import { reduceAll } from '@/lib/store';
 import { ThemeProvider } from './_components/ThemeProvider';
 import { Gestures } from './_components/Gestures';
@@ -62,6 +63,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  bootstrapSessionsSnapshot();
   const initial = reduceAll(bus.snapshot());
 
   return (

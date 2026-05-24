@@ -1,0 +1,36 @@
+{
+  "$comment": "Per-model pricing (USD per 1M tokens) and context window. Shared by the TypeScript helpers in pricing.ts and by hooks/transcript-poller.sh, so both compute cost and context% from the same source. Update both rows when Anthropic ships a new model.",
+  "models": [
+    {
+      "match": "claude-opus-4",
+      "inputPerMTok": 15.0,
+      "outputPerMTok": 75.0,
+      "cacheWritePerMTok": 18.75,
+      "cacheReadPerMTok": 1.5,
+      "contextWindow": 200000
+    },
+    {
+      "match": "claude-sonnet-4",
+      "inputPerMTok": 3.0,
+      "outputPerMTok": 15.0,
+      "cacheWritePerMTok": 3.75,
+      "cacheReadPerMTok": 0.3,
+      "contextWindow": 200000
+    },
+    {
+      "match": "claude-haiku-4",
+      "inputPerMTok": 1.0,
+      "outputPerMTok": 5.0,
+      "cacheWritePerMTok": 1.25,
+      "cacheReadPerMTok": 0.1,
+      "contextWindow": 200000
+    }
+  ],
+  "fallback": {
+    "inputPerMTok": 3.0,
+    "outputPerMTok": 15.0,
+    "cacheWritePerMTok": 3.75,
+    "cacheReadPerMTok": 0.3,
+    "contextWindow": 200000
+  }
+}

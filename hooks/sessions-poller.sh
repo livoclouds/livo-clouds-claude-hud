@@ -72,6 +72,11 @@ fi
 : "${SESSIONS_DIR:=${HOME}/.claude/sessions}"
 : "${PROJECTS_DIR:=${HOME}/.claude/projects}"
 : "${JOBS_DIR:=${HOME}/.claude/jobs}"
+# Persisted copy of the last snapshot we successfully POSTed. The HUD reads
+# this on SSR to hydrate the Sessions panel before the first live snapshot
+# arrives, closing the "Waiting for sessions snapshot from the poller…"
+# race after a server restart.
+: "${LAST_SNAPSHOT_FILE:=${HOME}/.claude/hud-last-sessions-snapshot.json}"
 
 [ -n "$HUD_INGEST_TOKEN" ] || bail sessions.snapshot missing_token
 
@@ -162,6 +167,42 @@ read_pins_set() {
   jq 'reduce .[] as $sid ({}; .[$sid] = true)' "$pins_file" 2>/dev/null
 }
 
+build_standalone_map() {
+  # Sessions launched via plain `claude` (no daemon, no ~/.claude/sessions
+  # entry once the process exits) survive only as a JSONL transcript under
+  # ~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl. The terminal `/agents`
+  # view ignores them but they are the most common shape on a developer
+  # machine and we want them in the HUD. This builds {sid: {cwd, mtime}} for
+  # every JSONL touched in the last week, reading `cwd` from the first
+  # record (the encoded directory name is lossy — '/' and '-' both map to
+  # '-' — so the in-file cwd is the source of truth).
+  if [ ! -d "$PROJECTS_DIR" ]; then printf '{}'; return 0; fi
+  local tmp
+  tmp="$(mktemp -t hud-standalone.XXXXXX 2>/dev/null)" || { printf '{}'; return 0; }
+  while IFS= read -r jsonl; do
+    [ -z "$jsonl" ] && continue
+    local base sid mtime_s cwd
+    base="$(basename "$jsonl")"
+    sid="${base%.jsonl}"
+    # shellcheck disable=SC2086
+    mtime_s="$(stat $STAT_MTIME_FMT "$jsonl" 2>/dev/null)"
+    [ -n "$mtime_s" ] || continue
+    cwd="$(head -n 10 "$jsonl" 2>/dev/null \
+            | jq -R -r 'fromjson? | .cwd? // empty' 2>/dev/null \
+            | grep -v '^$' \
+            | head -1)"
+    [ -n "$cwd" ] || continue
+    jq -n --arg sid "$sid" --arg cwd "$cwd" --argjson mtime $((mtime_s * 1000)) \
+      '{ sid: $sid, cwd: $cwd, mtime: $mtime }' >> "$tmp" 2>/dev/null
+  done < <(find "$PROJECTS_DIR" -maxdepth 3 -name '*.jsonl' -type f -mtime -2 2>/dev/null)
+  if [ -s "$tmp" ]; then
+    jq -s 'reduce .[] as $e ({}; .[$e.sid] = { cwd: $e.cwd, mtime: $e.mtime })' "$tmp"
+  else
+    printf '{}'
+  fi
+  rm -f "$tmp"
+}
+
 build_snapshot() {
   # Source of truth for the buckets that match the terminal `/agents` view:
   #   ~/.claude/jobs/<short>/state.json — semantic daemon state per session
@@ -170,14 +211,18 @@ build_snapshot() {
   # via build_sessions_map) to fill in pid/kind/startedAt/updatedAt, and
   # the JSONL mtime map for `lastActivityAt`. Orphan sessions (in
   # sessions/ but not in jobs/) fall through with status from the OS-level
-  # session file so a freshly-launched session still surfaces.
-  local sessions_map activity pins
+  # session file so a freshly-launched session still surfaces. A third pass
+  # (build_standalone_map) covers plain `claude` sessions that exist only
+  # as a JSONL on disk.
+  local sessions_map activity pins standalone
   sessions_map="$(build_sessions_map)"
   [ -z "$sessions_map" ] && sessions_map="{}"
   activity="$(build_activity_map)"
   [ -z "$activity" ] && activity="{}"
   pins="$(read_pins_set)"
   [ -z "$pins" ] && pins="{}"
+  standalone="$(build_standalone_map)"
+  [ -z "$standalone" ] && standalone="{}"
 
   # Collect all state.json files (one per daemon-managed session) into a
   # temp JSON array. Empty array when the daemon hasn't created any jobs.
@@ -202,6 +247,8 @@ build_snapshot() {
     --argjson sessionsMap "$sessions_map" \
     --argjson activity "$activity" \
     --argjson pins "$pins" \
+    --argjson standaloneMap "$standalone" \
+    --argjson nowS "$(date +%s)" \
     '
     # Helper: parse the state.json ISO-8601 string (e.g. 2026-05-22T23:26:26.133Z)
     # into a ms-epoch number. Used as a fallback for startedAt/updatedAt when
@@ -266,12 +313,40 @@ build_snapshot() {
           )
       ) as $orphans
 
+    # Pass 3: standalone CLI sessions — JSONL transcripts in projects/ with
+    # no daemon state.json (Pass 1) and no live sessions/<pid>.json (Pass 2).
+    # The session the user is reading the HUD from is usually one of these,
+    # so this is what unblocks "Waiting for sessions snapshot…" for the
+    # common case of a plain `claude` invocation.
+    | (($primary + $orphans) | map(.sessionId)) as $coveredAll
+    | (
+        $standaloneMap
+        | to_entries
+        | map(select((.key as $k | $coveredAll | index($k)) == null))
+        | map(
+            .key as $sid | .value as $v
+            | (($nowS * 1000) - $v.mtime) as $ageMs
+            | {
+                sessionId:      $sid,
+                name:           (($v.cwd // "") | split("/") | map(select(length > 0)) | (last // "unknown")),
+                cwd:            $v.cwd,
+                # Anything modified in the last 30 s is treated as live; older
+                # JSONLs are idle. The schema accepts any non-empty string.
+                status:         (if $ageMs < 30000 then "active" else "idle" end),
+                kind:           "cli",
+                startedAt:      $v.mtime,
+                updatedAt:      $v.mtime,
+                lastActivityAt: $v.mtime
+              }
+          )
+      ) as $standalone
+
     # Merge, drop null/false-only optional fields, enforce contract minima.
     | {
         type: "sessions.snapshot",
         ts: $now[0][0],
         sessions: (
-          ($primary + $orphans)
+          ($primary + $orphans + $standalone)
           | map(
               with_entries(
                 select(
@@ -330,6 +405,12 @@ while true; do
         fi
         PREV_HASH="$HASH"
         LAST_POST_TS="$NOW_TS"
+        # Persist the snapshot atomically so the HUD's SSR can hydrate from it
+        # after a server restart, before the next live POST arrives. Write to
+        # a sibling tmp file and rename so a partial write never leaks.
+        mkdir -p "$(dirname "$LAST_SNAPSHOT_FILE")" 2>/dev/null || true
+        printf '%s' "$SNAPSHOT" > "${LAST_SNAPSHOT_FILE}.tmp" 2>/dev/null \
+          && mv -f "${LAST_SNAPSHOT_FILE}.tmp" "$LAST_SNAPSHOT_FILE" 2>/dev/null
       else
         log_line sessions.snapshot fail "http=${HTTP:-error}"
       fi
