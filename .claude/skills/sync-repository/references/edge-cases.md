@@ -92,28 +92,40 @@ error: Your local changes to the following files would be overwritten by checkou
 
 This file appears as modified (`M tsconfig.tsbuildinfo`) regularly in TypeScript projects. It is a TypeScript incremental compilation cache that regenerates on every build.
 
-- If it appears as `M` but does **not** block pull: ignore it entirely, leave as-is, do not mention it in the summary.
-- If it **blocks** a pull: apply the "Pull Blocked by Local File Conflict" procedure above.
+- **Before pull (Step 2-a):** If detected as modified and a pull would not be a no-op, offer to discard it proactively (see `sync-procedure.md § Step 2-a`). Do not discard without user confirmation.
+- **If it appears as `M` but does not block pull:** ignore it entirely, leave as-is, do not mention it in the summary.
+- **If it blocks a pull:** apply the "Pull Blocked by Local File Conflict" procedure above.
 - Do not commit or stage this file under any circumstance.
 
 ---
 
 ## Network or Authentication Failure
 
-**Symptom:** `git fetch` exits with any of:
-```
-ssh: connect to host github.com port 22: Connection timed out
-fatal: Could not read from remote repository.
-fatal: unable to access 'https://...': Could not resolve host: github.com
-Permission denied (publickey).
-```
+**Distinguishing transient from permanent failures:**
 
-**Action:**
-1. Stop immediately. Do not attempt to pull.
-2. Report the exact error message.
+| Error message contains | Type | Action |
+|---|---|---|
+| `Connection timed out`, `Could not resolve host`, `Connection reset`, `ssh: connect to host` | Transient | Retry up to 2 more times with 10 s back-off (see `sync-procedure.md § Step 1`) |
+| `Permission denied`, `403`, `404`, `authentication failed`, `repository not found` | Permanent | Stop immediately — do not retry |
+
+**Action on final failure (after retries exhausted or permanent error):**
+1. Stop. Do not attempt to pull.
+2. Report the exact error message and how many fetch attempts were made.
 3. Record the sync as ❌ in the progress table.
 4. Suggest: check network connectivity, VPN status, and SSH key configuration (`ssh -T git@github.com`).
-5. Do not retry automatically.
+
+---
+
+## Fetch Timeout
+
+**Symptom:** `git fetch` has been running for more than 120 seconds without completing.
+
+**Action:**
+1. Kill the fetch process.
+2. Report: "Fetch timed out after 120 seconds."
+3. Treat this as a transient failure and apply the retry logic from `sync-procedure.md § Step 1` (up to 2 additional attempts).
+4. If all retry attempts also time out, report the failure and record the sync as ❌.
+5. Suggest the user check network speed or try again on a different connection.
 
 ---
 

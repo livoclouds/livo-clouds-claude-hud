@@ -34,7 +34,15 @@ Pull the latest commits from `origin/main` into the local repository, clean up s
 
 ## Execution Procedure
 
-Follow the 5-step sequence defined in `references/sync-procedure.md` exactly.
+Follow the 6-step sequence defined in `references/sync-procedure.md` exactly:
+
+- **Step 0** — Announce activation
+- **Step 1** — Fetch (with retry + 120 s timeout)
+- **Step 2** — Inspect status (with proactive tsconfig check)
+- **Step 3** — Pull (Cases A / B / C)
+- **Step 4** — Post-pull verification and cleanup (HEAD check, stale branch scan, contextual reminders)
+- **Step 5** — Render output and send push notification
+
 Handle all edge cases as documented in `references/edge-cases.md`.
 Render the output using the templates in `references/output-format.md`.
 Repository path and configuration live in `references/repo-config.md`.
@@ -48,8 +56,10 @@ Repository path and configuration live in `references/repo-config.md`.
 - Never delete a local branch with `-D` (force). Only `-d` (safe — git refuses if not merged).
 - If a pull is blocked by a local file conflict, stop and ask the user before acting.
 - If `main` has diverged (local commits ahead of origin), abort and report. Never reset.
-- If the fetch step fails (network error, auth failure), stop and report.
+- If the fetch step fails (network error, auth failure), retry transient failures up to 2 times; stop and report on permanent failures or after retries are exhausted.
+- If fetch exceeds 120 seconds, kill the process and apply the retry logic.
 - If `main` is checked out inside an active worktree (not the primary), stop and ask — never try to force the pull from the primary worktree.
+- Never delete stale local branches automatically — report them and let the user decide.
 
 ## Output
 
