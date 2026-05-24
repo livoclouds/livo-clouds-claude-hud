@@ -12,7 +12,8 @@
       "agent": "claude",
       "version": "2.1.150",
       "startedAt": 1779606482247,
-      "updatedAt": 1779608767884
+      "updatedAt": 1779608767884,
+      "lastActivityAt": 1779608790000
     },
     {
       "pid": 28353,
@@ -22,7 +23,8 @@
       "status": "idle",
       "kind": "fg",
       "startedAt": 1779601200000,
-      "updatedAt": 1779608000000
+      "updatedAt": 1779608000000,
+      "lastActivityAt": 1779608100000
     }
   ]
 }

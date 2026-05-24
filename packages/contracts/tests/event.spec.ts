@@ -207,6 +207,36 @@ describe('HudEventSchema — optional fields', () => {
     }
   });
 
+  it('CodeSessionInfo carries the optional lastActivityAt (JSONL mtime)', () => {
+    const result = HudEventSchema.safeParse(sessionsSnapshot);
+    expect(result.success).toBe(true);
+    if (result.success && result.data.type === 'sessions.snapshot') {
+      expect(result.data.sessions[0]!.lastActivityAt).toBe(1779608790000);
+      expect(result.data.sessions[1]!.lastActivityAt).toBe(1779608100000);
+    }
+  });
+
+  it('CodeSessionInfo accepts a session without lastActivityAt', () => {
+    const payload = {
+      type: 'sessions.snapshot',
+      ts: 1779608768000,
+      sessions: [
+        {
+          pid: 1,
+          sessionId: 'sess',
+          name: 'No JSONL yet',
+          cwd: '/tmp',
+          status: 'busy',
+          kind: 'bg',
+          startedAt: 1,
+          updatedAt: 2,
+        },
+      ],
+    };
+    const result = HudEventSchema.safeParse(payload);
+    expect(result.success).toBe(true);
+  });
+
   it('sessions.snapshot accepts an empty sessions array', () => {
     const payload = { type: 'sessions.snapshot', ts: 1779608000000, sessions: [] };
     const result = HudEventSchema.safeParse(payload);

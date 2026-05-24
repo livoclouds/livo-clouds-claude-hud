@@ -15,8 +15,20 @@ import { basename, relativeTime, truncate } from '@/lib/format';
 // worse than misclassifying them by one bucket.
 type Bucket = 'awaiting' | 'working' | 'completed';
 
-function bucketFor(status: string): Bucket {
-  const s = status.toLowerCase();
+// Idle threshold beyond which a session is shown as "Completed" regardless
+// of its on-disk `status` value. Claude Code never writes `status:
+// "completed"` to ~/.claude/sessions/<pid>.json — that bucket in the
+// terminal `/agents` view is computed from the per-session JSONL mtime,
+// which is what the poller surfaces as `lastActivityAt`. 5 minutes
+// matches what the terminal does subjectively.
+const COMPLETED_THRESHOLD_MS = 5 * 60 * 1000;
+
+function bucketFor(session: HudCodeSession, now: number): Bucket {
+  // Prefer the JSONL mtime (touched on every event) over the session
+  // file's `updatedAt` (only touched on lifecycle transitions).
+  const lastActivity = session.lastActivityAt ?? session.updatedAt;
+  if (now - lastActivity > COMPLETED_THRESHOLD_MS) return 'completed';
+  const s = session.status.toLowerCase();
   if (s === 'busy' || s === 'working' || s === 'running' || s === 'shell') return 'working';
   if (s === 'awaiting_input' || s === 'awaiting' || s === 'idle' || s === 'waiting') return 'awaiting';
   return 'completed';
@@ -149,8 +161,13 @@ function SessionCardRow({
             {truncate(basename(session.cwd), 26)}
           </span>
           <span className="hud-fg-muted">·</span>
-          <span className="hud-fg-muted">
-            {hydrated ? relativeTime(session.updatedAt, now) : '…'}
+          <span
+            className="hud-fg-muted"
+            title={`updatedAt: ${new Date(session.updatedAt).toISOString()}`}
+          >
+            {hydrated
+              ? relativeTime(session.lastActivityAt ?? session.updatedAt, now)
+              : '…'}
           </span>
         </div>
       </div>
@@ -210,9 +227,12 @@ export function SessionsDashboard() {
   const { pins, toggle } = usePinnedCodeSessions();
   const [now, setNow] = useState(() => Date.now());
 
-  // Bump every 30s so relative timestamps refresh without burning CPU.
+  // Bump every 10s so relative timestamps refresh and the activity-based
+  // bucketing re-evaluates promptly (a session crossing the 5-minute idle
+  // threshold should fall into "Completed" without waiting for the next
+  // poller snapshot to arrive).
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 30_000);
+    const id = setInterval(() => setNow(Date.now()), 10_000);
     return () => clearInterval(id);
   }, []);
 
@@ -223,7 +243,7 @@ export function SessionsDashboard() {
     const wk: HudCodeSession[] = [];
     const co: HudCodeSession[] = [];
     for (const s of all) {
-      const b = bucketFor(s.status);
+      const b = bucketFor(s, now);
       // Pre-hydration pins are an empty set, so everything goes into its
       // normal bucket and the server/client HTML matches.
       if (hydrated && pins.has(s.sessionId)) {
@@ -243,7 +263,7 @@ export function SessionsDashboard() {
       completed: co,
       counts: { awaiting: aw.length, working: wk.length, completed: co.length, total: all.length },
     };
-  }, [codeSessions, pins, hydrated]);
+  }, [codeSessions, pins, hydrated, now]);
 
   const isEmpty = counts.total === 0 && pinned.length === 0;
   const stale =
@@ -287,7 +307,7 @@ export function SessionsDashboard() {
                     <SessionCardRow
                       key={s.sessionId}
                       session={s}
-                      bucket={bucketFor(s.status)}
+                      bucket={bucketFor(s, now)}
                       pinned
                       onPinToggle={() => toggle(s.sessionId)}
                       now={now}
