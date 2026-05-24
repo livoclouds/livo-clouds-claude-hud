@@ -592,7 +592,7 @@
             </div>
           </li>
 
-          <li class="phase" data-phase-progress="0" data-phase-status="pending" data-finding-count="3">
+          <li class="phase" data-phase-progress="100" data-phase-status="completed" data-finding-count="3">
             <div class="phase-head">
               <div style="flex: 1; min-width: 240px">
                 <div class="phase-num">Phase 4</div>
@@ -601,13 +601,18 @@
               <div class="phase-meta">
                 <span class="badge critical">Critical</span>
                 <span class="badge high">High</span>
-                <span class="status" data-status="pending">Pending</span>
+                <span class="status" data-status="completed">Completed</span>
               </div>
             </div>
             <p class="phase-detail">
-              Incremental JSONL parsing for the transcript poller (16 MB → less
-              than 1 MB per tick), in-process cache for the sessions poller, and
-              fail-loud state directory creation.
+              Incremental JSONL byte-offset parsing in the transcript poller
+              (C6 — reads only new bytes per tick instead of slurping the full
+              file). Single-pass <code>find</code> fingerprint cache in the
+              sessions poller with per-session <code>cwd</code> memoisation
+              (H9 — recomputes maps only when files change). Explicit
+              writability check on the state directory with
+              <code>status=fatal</code> and <code>exit 1</code> on failure
+              (H10).
             </p>
             <div class="findings-list">
               <span class="finding-chip">C6</span>
@@ -615,12 +620,12 @@
               <span class="finding-chip">H10</span>
             </div>
             <div class="phase-progress">
-              <div class="bar-track"><div class="bar-fill" style="width: 0%"></div></div>
-              <div class="phase-pct">0%</div>
+              <div class="bar-track"><div class="bar-fill" style="width: 100%"></div></div>
+              <div class="phase-pct">100%</div>
             </div>
             <div class="phase-actions">
               <a href="./phases/phase-4-pollers.md">Phase notes →</a>
-              <span style="color: var(--fg-mute)">No PR yet</span>
+              <span style="color: var(--fg-mute)">Local changes pending PR</span>
             </div>
           </li>
 
@@ -710,7 +715,7 @@
         <code>blocked</code>, and replace the "No PR yet" span with a link.
         The script at the bottom recomputes everything on load.
         <br /><br />
-        Last regenerated: <span id="lastUpdated">2026-05-24 (Phase 3 completed — H1 O(1) index, H3 zombie sweep)</span>.
+        Last regenerated: <span id="lastUpdated">2026-05-24 (Phase 4 completed — C6 incremental JSONL, H9 map cache, H10 fatal state-dir check)</span>.
       </footer>
     </div>
 

@@ -114,37 +114,97 @@ fi
 log_line sessions.snapshot start "interval=${SESSIONS_POLLER_INTERVAL}s heartbeat=${SESSIONS_HEARTBEAT_S}s sessions=$SESSIONS_DIR jobs=$JOBS_DIR projects=$PROJECTS_DIR url=$HUD_URL"
 
 # Terminate cleanly on SIGINT/SIGTERM so the calling shell isn't blocked.
-trap 'log_line sessions.snapshot stop signal; exit 0' INT TERM
+trap 'log_line sessions.snapshot stop signal; [ -n "${CWD_CACHE_FILE:-}" ] && rm -f "$CWD_CACHE_FILE"; exit 0' INT TERM
 
 PREV_HASH=""
 LAST_POST_TS=0
+PREV_FIND_HASH=""
+PREV_ACTIVITY_JSON="{}"
+PREV_STANDALONE_JSON="{}"
+CWD_CACHE_FILE="$(mktemp -t hud-cwd.XXXXXX 2>/dev/null)" || CWD_CACHE_FILE=""
 
-build_activity_map() {
-  # Build a JSON object mapping sessionId → ms-epoch mtime of that
-  # session's JSONL transcript at ~/.claude/projects/*/<sid>.jsonl. The
-  # transcript is touched on every Claude Code event in the session, so its
-  # mtime is the most real-time "last activity" signal available. The
-  # HUD's SessionsDashboard uses it to bucket sessions into Completed when
-  # they've been idle for too long. Missing JSONL → no entry; the bucketer
-  # falls back to status-only logic.
-  local map="{"
-  local first=1
-  if [ -d "$PROJECTS_DIR" ]; then
-    while IFS= read -r jsonl; do
-      [ -z "$jsonl" ] && continue
-      local sid base mtime_s ms
-      base="$(basename "$jsonl")"
-      sid="${base%.jsonl}"
-      # shellcheck disable=SC2086
-      mtime_s="$(stat $STAT_MTIME_FMT "$jsonl" 2>/dev/null)"
-      [ -z "$mtime_s" ] && continue
-      ms=$((mtime_s * 1000))
-      if [ "$first" = 1 ]; then first=0; else map+=","; fi
-      map+="\"$sid\":$ms"
-    done < <(find "$PROJECTS_DIR" -maxdepth 3 -name '*.jsonl' -type f 2>/dev/null)
+refresh_jsonl_maps() {
+  # Refresh PREV_ACTIVITY_JSON and PREV_STANDALONE_JSON from disk. Both maps
+  # are rebuilt only when the sorted (file, mtime) fingerprint changes.
+  # Runs in the main shell so global assignments persist across ticks.
+  if [ ! -d "$PROJECTS_DIR" ]; then
+    PREV_ACTIVITY_JSON="{}"
+    PREV_STANDALONE_JSON="{}"
+    PREV_FIND_HASH=""
+    return 0
   fi
-  map+="}"
-  printf '%s' "$map"
+
+  local two_days_ago
+  two_days_ago=$(( $(date +%s) - 172800 ))
+
+  # One find pass: collect all JSONL paths with their mtimes, sorted for a
+  # stable fingerprint hash. Inner while runs in a subshell (pipeline) so
+  # variable assignments there are intentionally discarded — only stdout matters.
+  local fingerprint
+  fingerprint="$(find "$PROJECTS_DIR" -maxdepth 3 -name '*.jsonl' -type f 2>/dev/null \
+    | sort \
+    | while IFS= read -r f; do
+        # shellcheck disable=SC2086
+        local m
+        m="$(stat $STAT_MTIME_FMT "$f" 2>/dev/null)" && printf '%s\t%s\n' "$f" "$m"
+      done)"
+
+  local new_find_hash
+  new_find_hash="$(printf '%s' "$fingerprint" | hash_snapshot)"
+
+  [ "$new_find_hash" = "$PREV_FIND_HASH" ] && return 0
+
+  # Cache miss: recompute both maps in a single pass over the fingerprint.
+  local act_map act_first standalone_tmp
+  act_map="{"
+  act_first=1
+  standalone_tmp="$(mktemp -t hud-standalone.XXXXXX 2>/dev/null)" || standalone_tmp=""
+
+  while IFS=$'\t' read -r f mtime_s; do
+    [ -z "$f" ] || [ -z "$mtime_s" ] && continue
+    local base sid ms
+    base="$(basename "$f")"
+    sid="${base%.jsonl}"
+    ms=$((mtime_s * 1000))
+
+    # Activity map — all JSONL files regardless of age.
+    [ "$act_first" = 1 ] && act_first=0 || act_map+=","
+    act_map+="\"$sid\":$ms"
+
+    # Standalone map — recent files only; need the session cwd.
+    if [ "$mtime_s" -ge "$two_days_ago" ]; then
+      local cwd=""
+      # Check the in-process cwd cache before hitting the filesystem.
+      if [ -n "$CWD_CACHE_FILE" ] && [ -f "$CWD_CACHE_FILE" ]; then
+        cwd="$(grep -m1 "^${sid}"$'\t' "$CWD_CACHE_FILE" 2>/dev/null | cut -f2-)"
+      fi
+      if [ -z "$cwd" ]; then
+        cwd="$(head -n 10 "$f" 2>/dev/null \
+               | jq -R -r 'fromjson? | .cwd? // empty' 2>/dev/null \
+               | grep -v '^$' | head -1)"
+        [ -n "$cwd" ] && [ -n "$CWD_CACHE_FILE" ] && \
+          printf '%s\t%s\n' "$sid" "$cwd" >> "$CWD_CACHE_FILE"
+      fi
+      [ -z "$cwd" ] && continue
+      [ -n "$standalone_tmp" ] && \
+        jq -n --arg sid "$sid" --arg cwd "$cwd" --argjson mtime "$ms" \
+          '{ sid: $sid, cwd: $cwd, mtime: $mtime }' >> "$standalone_tmp" 2>/dev/null
+    fi
+  done <<< "$fingerprint"
+
+  act_map+="}"
+
+  local stalone_json="{}"
+  if [ -n "$standalone_tmp" ] && [ -s "$standalone_tmp" ]; then
+    stalone_json="$(jq -s \
+      'reduce .[] as $e ({}; .[$e.sid] = { cwd: $e.cwd, mtime: $e.mtime })' \
+      "$standalone_tmp" 2>/dev/null)" || stalone_json="{}"
+  fi
+  rm -f "$standalone_tmp"
+
+  PREV_FIND_HASH="$new_find_hash"
+  PREV_ACTIVITY_JSON="$act_map"
+  PREV_STANDALONE_JSON="$stalone_json"
 }
 
 build_sessions_map() {
@@ -181,42 +241,6 @@ read_pins_set() {
   jq 'reduce .[] as $sid ({}; .[$sid] = true)' "$pins_file" 2>/dev/null
 }
 
-build_standalone_map() {
-  # Sessions launched via plain `claude` (no daemon, no ~/.claude/sessions
-  # entry once the process exits) survive only as a JSONL transcript under
-  # ~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl. The terminal `/agents`
-  # view ignores them but they are the most common shape on a developer
-  # machine and we want them in the HUD. This builds {sid: {cwd, mtime}} for
-  # every JSONL touched in the last week, reading `cwd` from the first
-  # record (the encoded directory name is lossy — '/' and '-' both map to
-  # '-' — so the in-file cwd is the source of truth).
-  if [ ! -d "$PROJECTS_DIR" ]; then printf '{}'; return 0; fi
-  local tmp
-  tmp="$(mktemp -t hud-standalone.XXXXXX 2>/dev/null)" || { printf '{}'; return 0; }
-  while IFS= read -r jsonl; do
-    [ -z "$jsonl" ] && continue
-    local base sid mtime_s cwd
-    base="$(basename "$jsonl")"
-    sid="${base%.jsonl}"
-    # shellcheck disable=SC2086
-    mtime_s="$(stat $STAT_MTIME_FMT "$jsonl" 2>/dev/null)"
-    [ -n "$mtime_s" ] || continue
-    cwd="$(head -n 10 "$jsonl" 2>/dev/null \
-            | jq -R -r 'fromjson? | .cwd? // empty' 2>/dev/null \
-            | grep -v '^$' \
-            | head -1)"
-    [ -n "$cwd" ] || continue
-    jq -n --arg sid "$sid" --arg cwd "$cwd" --argjson mtime $((mtime_s * 1000)) \
-      '{ sid: $sid, cwd: $cwd, mtime: $mtime }' >> "$tmp" 2>/dev/null
-  done < <(find "$PROJECTS_DIR" -maxdepth 3 -name '*.jsonl' -type f -mtime -2 2>/dev/null)
-  if [ -s "$tmp" ]; then
-    jq -s 'reduce .[] as $e ({}; .[$e.sid] = { cwd: $e.cwd, mtime: $e.mtime })' "$tmp"
-  else
-    printf '{}'
-  fi
-  rm -f "$tmp"
-}
-
 build_snapshot() {
   # Source of truth for the buckets that match the terminal `/agents` view:
   #   ~/.claude/jobs/<short>/state.json — semantic daemon state per session
@@ -228,15 +252,13 @@ build_snapshot() {
   # session file so a freshly-launched session still surfaces. A third pass
   # (build_standalone_map) covers plain `claude` sessions that exist only
   # as a JSONL on disk.
-  local sessions_map activity pins standalone
+  local activity="${1:-{}}"
+  local standalone="${2:-{}}"
+  local sessions_map pins
   sessions_map="$(build_sessions_map)"
   [ -z "$sessions_map" ] && sessions_map="{}"
-  activity="$(build_activity_map)"
-  [ -z "$activity" ] && activity="{}"
   pins="$(read_pins_set)"
   [ -z "$pins" ] && pins="{}"
-  standalone="$(build_standalone_map)"
-  [ -z "$standalone" ] && standalone="{}"
 
   # Collect all state.json files (one per daemon-managed session) into a
   # temp JSON array. Empty array when the daemon hasn't created any jobs.
@@ -394,7 +416,8 @@ hash_snapshot() {
 
 while true; do
   rotate_log
-  SNAPSHOT="$(build_snapshot)"
+  refresh_jsonl_maps
+  SNAPSHOT="$(build_snapshot "$PREV_ACTIVITY_JSON" "$PREV_STANDALONE_JSON")"
   if [ -n "$SNAPSHOT" ]; then
     # Hash only the sessions array so the volatile `ts` field doesn't
     # invalidate the hash on every tick. POST when state changes, OR when
