@@ -7,7 +7,13 @@ export type BusEnvelope = {
 
 export type Subscriber = (envelope: BusEnvelope) => void;
 
+type SubscriberMeta = { lastDeliveryTs: number };
+
 const DEFAULT_CAPACITY = 1000;
+const SWEEP_INTERVAL_MS = 60_000;
+
+export const ZOMBIE_TIMEOUT_MS = 5 * 60_000;
+export const SUBSCRIBER_WARN_THRESHOLD = 50;
 
 function readCapacity(): number {
   const raw = process.env.HUD_BUS_SIZE;
@@ -17,13 +23,17 @@ function readCapacity(): number {
   return parsed;
 }
 
-class EventBus {
+export class EventBus {
   private readonly _capacity: number;
   private readonly ring: Array<BusEnvelope | undefined>;
   private head = 0;
   private count = 0;
   private nextId = 1;
-  private readonly subscribers = new Set<Subscriber>();
+  /** Maps event id → ring slot for O(1) replaySince lookup. Evicted when slot is overwritten. */
+  private readonly idIndex = new Map<string, number>();
+  private readonly subscribers = new Map<Subscriber, SubscriberMeta>();
+  private lastPublishTs = 0;
+  private sweepTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(capacity: number) {
     this._capacity = capacity;
@@ -39,13 +49,23 @@ class EventBus {
       id: (this.nextId++).toString(36),
       event,
     };
-    this.ring[this.head] = envelope;
-    this.head = (this.head + 1) % this._capacity;
+
+    // Evict the ID that currently occupies this slot before overwriting.
+    const slot = this.head;
+    const old = this.ring[slot];
+    if (old) this.idIndex.delete(old.id);
+
+    this.ring[slot] = envelope;
+    this.idIndex.set(envelope.id, slot);
+    this.head = (slot + 1) % this._capacity;
     if (this.count < this._capacity) this.count += 1;
 
-    for (const sub of [...this.subscribers]) {
+    this.lastPublishTs = Date.now();
+
+    for (const [sub, meta] of [...this.subscribers]) {
       try {
         sub(envelope);
+        meta.lastDeliveryTs = Date.now();
       } catch {
         // One bad subscriber must not break fan-out. Payload is intentionally
         // omitted from logs to avoid leaking event content.
@@ -56,7 +76,13 @@ class EventBus {
   }
 
   subscribe(cb: Subscriber): () => void {
-    this.subscribers.add(cb);
+    this.subscribers.set(cb, { lastDeliveryTs: Date.now() });
+    this.startSweep();
+    if (this.subscribers.size > SUBSCRIBER_WARN_THRESHOLD) {
+      console.warn(
+        `bus: subscriber count ${this.subscribers.size} exceeds threshold of ${SUBSCRIBER_WARN_THRESHOLD}`,
+      );
+    }
     return () => {
       this.subscribers.delete(cb);
     };
@@ -74,13 +100,61 @@ class EventBus {
   }
 
   replaySince(lastId: string | null): { envelopes: BusEnvelope[]; truncated: boolean } {
-    const all = this.snapshot();
-    if (!lastId) return { envelopes: all, truncated: false };
-    const idx = all.findIndex((e) => e.id === lastId);
-    if (idx === -1) {
+    if (!lastId) return { envelopes: this.snapshot(), truncated: false };
+
+    const slot = this.idIndex.get(lastId);
+    if (slot === undefined) {
+      // ID is unknown or was evicted by ring wrap-around.
+      const all = this.snapshot();
       return { envelopes: all, truncated: all.length > 0 };
     }
-    return { envelopes: all.slice(idx + 1), truncated: false };
+
+    // O(1) slot found. Collect the events that follow it in chronological order.
+    const oldestSlot = this.count < this._capacity ? 0 : this.head;
+    const slotPos = (slot - oldestSlot + this._capacity) % this._capacity;
+    const numAfter = this.count - slotPos - 1;
+
+    const envelopes: BusEnvelope[] = [];
+    for (let i = 0; i < numAfter; i++) {
+      const s = (slot + 1 + i) % this._capacity;
+      const env = this.ring[s];
+      if (env) envelopes.push(env);
+    }
+    return { envelopes, truncated: false };
+  }
+
+  private startSweep(): void {
+    if (this.sweepTimer) return;
+    this.sweepTimer = setInterval(() => this.sweepZombies(), SWEEP_INTERVAL_MS);
+    // Do not hold the Node.js process open solely for cleanup sweeps.
+    if (typeof this.sweepTimer === 'object' && this.sweepTimer !== null && 'unref' in this.sweepTimer) {
+      (this.sweepTimer as NodeJS.Timeout).unref();
+    }
+  }
+
+  private sweepZombies(): void {
+    if (this.subscribers.size === 0) return;
+    const now = Date.now();
+    // Only prune when the bus is actively publishing; a quiet bus with old
+    // lastDeliveryTs values is normal, not a sign of zombies.
+    if (!this.lastPublishTs || now - this.lastPublishTs > ZOMBIE_TIMEOUT_MS) return;
+
+    const threshold = now - ZOMBIE_TIMEOUT_MS;
+    let pruned = 0;
+    for (const [sub, meta] of this.subscribers) {
+      if (meta.lastDeliveryTs < threshold) {
+        this.subscribers.delete(sub);
+        pruned++;
+      }
+    }
+    if (pruned > 0) {
+      console.warn(`bus: pruned ${pruned} zombie subscriber(s)`);
+    }
+    if (this.subscribers.size > SUBSCRIBER_WARN_THRESHOLD) {
+      console.warn(
+        `bus: ${this.subscribers.size} active subscribers exceed threshold of ${SUBSCRIBER_WARN_THRESHOLD}`,
+      );
+    }
   }
 }
 

@@ -73,7 +73,7 @@ below is updated by hand at the end of each PR.
 |---|---|---|---|
 | Phase 1 — Security & Disk | Critical | ✅ Completed | Local changes pending PR |
 | Phase 2 — Client performance | Critical | ✅ Completed | Local changes pending PR |
-| Phase 3 — Server & bus | High | ⏳ Pending | — |
+| Phase 3 — Server & bus | High | ✅ Completed | Local changes pending PR |
 | Phase 4 — Pollers | Critical / High | ⏳ Pending | — |
 | Phase 5 — SSE backpressure | High | ⏳ Pending | — |
 
