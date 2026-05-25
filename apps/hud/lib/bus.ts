@@ -133,7 +133,13 @@ export class EventBus {
   }
 
   private sweepZombies(): void {
-    if (this.subscribers.size === 0) return;
+    if (this.subscribers.size === 0) {
+      // All subscribers unsubscribed between sweeps — disarm the timer so it
+      // doesn't fire unnecessarily. startSweep() re-arms it on the next subscribe().
+      clearInterval(this.sweepTimer!);
+      this.sweepTimer = null;
+      return;
+    }
     const now = Date.now();
     // Only prune when the bus is actively publishing; a quiet bus with old
     // lastDeliveryTs values is normal, not a sign of zombies.
@@ -151,7 +157,11 @@ export class EventBus {
     if (pruned > 0) {
       console.warn(`bus: pruned ${pruned} zombie subscriber(s)`);
     }
-    if (this.subscribers.size > SUBSCRIBER_WARN_THRESHOLD) {
+    if (this.subscribers.size === 0) {
+      // All subscribers were pruned — disarm until the next subscribe().
+      clearInterval(this.sweepTimer!);
+      this.sweepTimer = null;
+    } else if (this.subscribers.size > SUBSCRIBER_WARN_THRESHOLD) {
       console.warn(
         `bus: ${this.subscribers.size} active subscribers exceed threshold of ${SUBSCRIBER_WARN_THRESHOLD}`,
       );

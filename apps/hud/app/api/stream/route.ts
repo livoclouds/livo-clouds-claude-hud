@@ -59,16 +59,22 @@ export function GET(req: Request): Response {
         write(frameFor(env));
       }
 
-      unsubscribe = bus.subscribe(
-        (env) => {
-          write(frameFor(env));
-        },
-        { onForced: close },
-      );
-
-      heartbeat = setInterval(() => {
-        write(formatComment('ping'));
-      }, HEARTBEAT_INTERVAL_MS);
+      try {
+        unsubscribe = bus.subscribe(
+          (env) => {
+            write(frameFor(env));
+          },
+          { onForced: close },
+        );
+        heartbeat = setInterval(() => {
+          write(formatComment('ping'));
+        }, HEARTBEAT_INTERVAL_MS);
+      } catch (err) {
+        // Guard against unexpected errors after subscribe() succeeds but before
+        // we return — ensure the subscriber is not leaked (I2).
+        if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+        throw err;
+      }
     },
     onClose: () => {
       if (heartbeat) clearInterval(heartbeat);

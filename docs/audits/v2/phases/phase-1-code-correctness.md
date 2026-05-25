@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Severity** | Medium |
-| **Status** | ⏳ Pending |
+| **Status** | ✅ Completed |
 | **PR** | — |
 | **Estimated effort** | ~4 hours |
 | **Risk of regression** | Low — targeted fixes to edge-case paths not on the hot render path |
@@ -39,7 +39,19 @@ shell scripts, and the Zustand store — no UI changes.
 
 ## Files changed
 
-_(To be filled in after implementation.)_
+| File | Findings |
+|---|---|
+| `apps/hud/instrumentation-node.ts` | I1, I11 |
+| `apps/hud/lib/bus.ts` | I7 |
+| `apps/hud/lib/sse.ts` | I8, I9 |
+| `apps/hud/app/api/stream/route.ts` | I2 |
+| `apps/hud/lib/log.ts` | I3 |
+| `apps/hud/app/api/events/route.ts` | I3, I10 |
+| `apps/hud/lib/store.ts` | O9, O10 |
+| `apps/hud/lib/sessions-filters.ts` | O6 |
+| `apps/hud/lib/sse-client.ts` | O8 |
+| `hooks/sessions-poller.sh` | I4, I5 |
+| `hooks/claude-hook.sh` | I6, I12 |
 
 ---
 
@@ -78,8 +90,16 @@ Additional manual checks:
 
 ## Status updates
 
-- **2026-05-24** — Phase scoped, awaiting implementation.
+- **2026-05-24** — Phase scoped.
+- **2026-05-24** — All 16 findings implemented. Typecheck, lint, and build pass clean.
+
+## Implementation notes
+
+- **I9 (cancel handler)**: `cleanup` was hoisted from inside `start()` to the outer `buildSseResponse` scope as a mutable variable, initially set to a no-op and overridden inside `start()` once the controller is available. This allows `cancel()` to safely delegate to it.
+- **O9 (agents reducer)**: `Object.assign({}, ...)` + in-place key update replaces spread in three locations (`tool.use`, `agent.invoke`, `agent.complete`). Semantically equivalent; makes the single-copy intent explicit.
+- **O10 (appendRecent)**: `shift()` + `push()` on a mutable copy reduces at-capacity path from two allocations to one.
+- **I3 (log propagation)**: `appendEvent` now rethrows after logging, and `events/route.ts` wraps it in try-catch returning 500. The event is published to the in-memory bus before the disk write, so SSE subscribers are unaffected by disk failures.
 
 ## What was deferred
 
-_(To be filled in after implementation.)_
+Nothing deferred from Phase 1. All 16 findings resolved.

@@ -158,7 +158,10 @@ refresh_jsonl_maps() {
   local act_map act_first standalone_tmp
   act_map="{"
   act_first=1
-  standalone_tmp="$(mktemp -t hud-standalone.XXXXXX 2>/dev/null)" || standalone_tmp=""
+  standalone_tmp="$(mktemp -t hud-standalone.XXXXXX 2>/dev/null)" || {
+    standalone_tmp=""
+    printf '[sessions-poller] warn: mktemp failed — standalone sessions will be skipped this tick\n' >&2
+  }
 
   while IFS=$'\t' read -r f mtime_s; do
     [ -z "$f" ] || [ -z "$mtime_s" ] && continue
@@ -179,8 +182,14 @@ refresh_jsonl_maps() {
         cwd="$(grep -m1 "^${sid}"$'\t' "$CWD_CACHE_FILE" 2>/dev/null | cut -f2-)"
       fi
       if [ -z "$cwd" ]; then
+        # Route jq stderr to a warning so corrupted JSONL lines are not
+        # silently discarded (I4).
         cwd="$(head -n 10 "$f" 2>/dev/null \
-               | jq -R -r 'fromjson? | .cwd? // empty' 2>/dev/null \
+               | jq -R -r 'fromjson? | .cwd? // empty' \
+                   2> >(while IFS= read -r jq_err; do
+                          printf '[sessions-poller] warn: jq parse error in %s: %s\n' \
+                            "$(basename "$f")" "$jq_err" >&2
+                        done) \
                | grep -v '^$' | head -1)"
         [ -n "$cwd" ] && [ -n "$CWD_CACHE_FILE" ] && \
           printf '%s\t%s\n' "$sid" "$cwd" >> "$CWD_CACHE_FILE"

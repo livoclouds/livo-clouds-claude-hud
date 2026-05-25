@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { HudCodeSession } from '@/lib/store';
 
 // Status buckets in the order the terminal `/agents` view renders them.
@@ -149,9 +149,23 @@ export function useSessionsFilters(): {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
+  // Debounce localStorage writes to avoid blocking the JS thread on every
+  // keystroke during text search (O6).
+  const writeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (writeTimerRef.current !== null) clearTimeout(writeTimerRef.current);
+    };
+  }, []);
+
   const update = useCallback((next: SessionsFilters) => {
     setFilters(next);
-    writeFilters(next);
+    if (writeTimerRef.current !== null) clearTimeout(writeTimerRef.current);
+    writeTimerRef.current = setTimeout(() => {
+      writeTimerRef.current = null;
+      writeFilters(next);
+    }, 300);
   }, []);
 
   const setSearchText = useCallback(
