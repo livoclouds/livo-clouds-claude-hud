@@ -1,7 +1,12 @@
 import { z } from 'zod';
 
 const sessionId = z.string().min(1);
-const ts = z.number().int().nonnegative();
+// unix epoch milliseconds (Date.now()); minimum is 2021-01-01T00:00:00Z to
+// reject second-precision timestamps (e.g. 1716508800 instead of 1716508800000).
+const ts = z
+  .number()
+  .int()
+  .min(1_609_459_200_000, 'ts must be unix epoch milliseconds, not seconds');
 const cwd = z.string().min(1).optional();
 const model = z.string().min(1).optional();
 const tool = z.string().min(1);
@@ -121,7 +126,13 @@ const AgentInvoke = z
     // CSS color name from the agent definition's frontmatter. Optional —
     // the hook script does not parse frontmatter today; the HUD falls back to
     // a built-in color map and then to status colors.
-    agentColor: z.string().min(1).optional(),
+    agentColor: z
+      .string()
+      .regex(
+        /^(#[0-9a-fA-F]{3,8}|[a-z][a-z-]*)$/,
+        'agentColor must be a CSS named colour or hex code',
+      )
+      .optional(),
     // The prompt the parent passed to the subagent. Captured from
     // PreToolUse(Agent).tool_input.prompt so the detail sheet can show it.
     prompt: z.string().min(1).optional(),

@@ -236,6 +236,9 @@ The HUD targets iPad in particular. Therefore:
 - Mascot animation: must hold **60 fps** on iPad 2021 hardware. If a state cannot, drop
   the animation, never the framerate.
 - Memory: client process must stay under **150 MB** RSS over a 24 h continuous session.
+- Client JS bundle: no single chunk > **150 KB** gzipped; total < **500 KB** gzipped
+  (current baseline ~396 KB; ideal target 250 KB — tracked as deferred optimization).
+  Enforced automatically by `scripts/check-bundle-size.js` in CI.
 
 ---
 

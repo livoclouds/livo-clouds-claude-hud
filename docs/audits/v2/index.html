@@ -450,7 +450,7 @@
             </div>
           </li>
 
-          <li class="phase" data-phase-progress="0" data-phase-status="pending" data-finding-count="5">
+          <li class="phase" data-phase-progress="100" data-phase-status="completed" data-finding-count="5">
             <div class="phase-head">
               <div style="flex: 1; min-width: 240px">
                 <div class="phase-num">Phase 5</div>
@@ -458,7 +458,7 @@
               </div>
               <div class="phase-meta">
                 <span class="badge low">Low</span>
-                <span class="status" data-status="pending">Pending</span>
+                <span class="status" data-status="completed">Completed</span>
               </div>
             </div>
             <p class="phase-detail">
@@ -472,19 +472,19 @@
               all env vars and tuning notes.
             </p>
             <div class="findings-list">
-              <span class="finding-chip">O5</span>
-              <span class="finding-chip">O11</span>
-              <span class="finding-chip">O12</span>
-              <span class="finding-chip">O13</span>
-              <span class="finding-chip">O14</span>
+              <span class="finding-chip resolved">O5</span>
+              <span class="finding-chip resolved">O11</span>
+              <span class="finding-chip resolved">O12</span>
+              <span class="finding-chip resolved">O13</span>
+              <span class="finding-chip resolved">O14</span>
             </div>
             <div class="phase-progress">
-              <div class="bar-track"><div class="bar-fill" style="width: 0%"></div></div>
-              <div class="phase-pct">0%</div>
+              <div class="bar-track"><div class="bar-fill" style="width: 100%"></div></div>
+              <div class="phase-pct">100%</div>
             </div>
             <div class="phase-actions">
               <a href="./phases/phase-5-hardening.md">Phase notes →</a>
-              <span style="color: var(--fg-mute)">No PR yet</span>
+              <a href="https://github.com/livoclouds/livo-clouds-claude-hud/pull/47">#audit-v2-phase-5</a>
             </div>
           </li>
 
@@ -534,7 +534,7 @@
         or <code>blocked</code>, and replace the "No PR yet" span with a link.
         The script below recomputes everything on load.
         <br /><br />
-        Last regenerated: <span id="lastUpdated">2026-05-24 (Phase 3 completed — U5, U6, U8, U9, U10, U11 resolved)</span>.
+        Last regenerated: <span id="lastUpdated">2026-05-24 (Phase 5 completed — O5, O11, O12, O13, O14 resolved; all 39 findings closed)</span>.
       </footer>
     </div>
 
