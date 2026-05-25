@@ -75,7 +75,7 @@ below is updated by hand at the end of each PR.
 | Phase 2 — Client performance | Critical | ✅ Completed | Local changes pending PR |
 | Phase 3 — Server & bus | High | ✅ Completed | Local changes pending PR |
 | Phase 4 — Pollers | Critical / High | ✅ Completed | Local changes pending PR |
-| Phase 5 — SSE backpressure | High | ⏳ Pending | — |
+| Phase 5 — SSE backpressure | High | ✅ Completed | Local changes pending PR |
 
 Phases are independent and can be merged in any order. The recommended
 order — `1 → 2 → 4 → 3 → 5` — minimises risk by starting with the

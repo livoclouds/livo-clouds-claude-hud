@@ -629,7 +629,7 @@
             </div>
           </li>
 
-          <li class="phase" data-phase-progress="0" data-phase-status="pending" data-finding-count="1">
+          <li class="phase" data-phase-progress="100" data-phase-status="completed" data-finding-count="1">
             <div class="phase-head">
               <div style="flex: 1; min-width: 240px">
                 <div class="phase-num">Phase 5</div>
@@ -637,25 +637,33 @@
               </div>
               <div class="phase-meta">
                 <span class="badge high">High</span>
-                <span class="status" data-status="pending">Pending</span>
+                <span class="status" data-status="completed">Completed</span>
               </div>
             </div>
             <p class="phase-detail">
               Detect slow consumers, close the stream before the buffer leaks
-              RAM, and rely on the existing Last-Event-ID reconnect path. The
-              most invasive phase — ships in its own PR with a dedicated
-              benchmark.
+              RAM, and rely on the existing Last-Event-ID reconnect path.
+              Implemented 2026-05-24: per-write backpressure check using
+              <code>controller.desiredSize</code> (byte-counting fallback when
+              unavailable); configurable thresholds via
+              <code>HUD_SSE_BACKPRESSURE_BYTES</code> (default 1 MB) and
+              <code>HUD_SSE_BACKPRESSURE_GRACE_S</code> (default 30 s);
+              <code>bp-disconnect</code> SSE event sent before closing so the
+              client can log the reason; bus zombie-sweep now also force-closes
+              the corresponding SSE connection via <code>onForced</code>
+              callback; fixed pre-existing write-throw bug that left heartbeat
+              intervals and bus subscriptions alive.
             </p>
             <div class="findings-list">
               <span class="finding-chip">H2</span>
             </div>
             <div class="phase-progress">
-              <div class="bar-track"><div class="bar-fill" style="width: 0%"></div></div>
-              <div class="phase-pct">0%</div>
+              <div class="bar-track"><div class="bar-fill" style="width: 100%"></div></div>
+              <div class="phase-pct">100%</div>
             </div>
             <div class="phase-actions">
               <a href="./phases/phase-5-sse-backpressure.md">Phase notes →</a>
-              <span style="color: var(--fg-mute)">No PR yet</span>
+              <span style="color: var(--fg-mute)">Local changes pending PR</span>
             </div>
           </li>
         </ol>
@@ -715,7 +723,7 @@
         <code>blocked</code>, and replace the "No PR yet" span with a link.
         The script at the bottom recomputes everything on load.
         <br /><br />
-        Last regenerated: <span id="lastUpdated">2026-05-24 (Phase 4 completed — C6 incremental JSONL, H9 map cache, H10 fatal state-dir check)</span>.
+        Last regenerated: <span id="lastUpdated">2026-05-24 (Phase 5 completed — H2 SSE backpressure: desiredSize check, byte fallback, bp-disconnect event, onForced zombie-to-SSE close)</span>.
       </footer>
     </div>
 

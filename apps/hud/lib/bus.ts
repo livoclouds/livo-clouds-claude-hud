@@ -7,7 +7,7 @@ export type BusEnvelope = {
 
 export type Subscriber = (envelope: BusEnvelope) => void;
 
-type SubscriberMeta = { lastDeliveryTs: number };
+type SubscriberMeta = { lastDeliveryTs: number; onForced?: () => void };
 
 const DEFAULT_CAPACITY = 1000;
 const SWEEP_INTERVAL_MS = 60_000;
@@ -75,8 +75,8 @@ export class EventBus {
     return envelope;
   }
 
-  subscribe(cb: Subscriber): () => void {
-    this.subscribers.set(cb, { lastDeliveryTs: Date.now() });
+  subscribe(cb: Subscriber, opts?: { onForced?: () => void }): () => void {
+    this.subscribers.set(cb, { lastDeliveryTs: Date.now(), onForced: opts?.onForced });
     this.startSweep();
     if (this.subscribers.size > SUBSCRIBER_WARN_THRESHOLD) {
       console.warn(
@@ -144,6 +144,7 @@ export class EventBus {
     for (const [sub, meta] of this.subscribers) {
       if (meta.lastDeliveryTs < threshold) {
         this.subscribers.delete(sub);
+        meta.onForced?.();
         pruned++;
       }
     }
