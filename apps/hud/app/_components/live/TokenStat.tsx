@@ -9,14 +9,29 @@ import { Skeleton } from '../ui/Skeleton';
 
 export function TokenStat() {
   const tokens = useHud((s) => s.tokens);
-  const loading = useHud((s) => s.lastActivityAt === null);
+  // "Loading" = active session has no turn.metrics row yet. Distinct from
+  // "no activity at all": once the user actually starts working, lastActivityAt
+  // bumps but tokens stay 0 until the transcript poller catches up. We want
+  // a Loading skeleton in that window, not a misleading "0/0/0".
+  const loadingMetrics = useHud((s) => {
+    if (!s.session) return true;
+    return s.sessionMetrics[s.session.id] === undefined;
+  });
+  const currentAgent = useHud((s) => s.currentAgent);
   const { show } = useMetricSheet();
 
   return (
     <LongPressable onLongPress={() => show('tokens')}>
       <div className="hud-card p-6">
-        <p className="hud-fg-muted text-xs uppercase tracking-wider">Tokens</p>
-        {loading ? (
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="hud-fg-muted text-xs uppercase tracking-wider">Tokens</p>
+          {currentAgent && (
+            <p className="hud-fg-muted text-[10px] uppercase tracking-wider">
+              Subagent: <span className="hud-fg">{currentAgent}</span>
+            </p>
+          )}
+        </div>
+        {loadingMetrics ? (
           <div className="mt-4 grid grid-cols-3 gap-4">
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />

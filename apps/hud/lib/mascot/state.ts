@@ -79,6 +79,10 @@ function stateFromEvent(
       return classifyTool(event.tool);
     case 'turn.stop':
       return 'succeeded';
+    case 'turn.metrics':
+      // Authoritative numeric update from the transcript poller — does not
+      // carry semantic meaning for the mascot. Preserve the prior state.
+      return derivePreCompactState(recentEvents, nowMs);
     case 'compact.start':
       return 'compacting';
     case 'compact.end':

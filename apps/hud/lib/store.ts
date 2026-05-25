@@ -77,6 +77,20 @@ export type HudEnvelope = {
 
 export type ConnectionState = 'connected' | 'reconnecting' | 'disconnected';
 
+// Per-session metrics derived from the JSONL transcript by the transcript
+// poller (turn.metrics events). Keyed by sessionId so the HUD can display the
+// totals for the *active* session even when other concurrent sessions emit
+// their own metrics — eliminating the flicker that came from the store
+// previously following whichever sessionId was most recent.
+export type HudSessionMetrics = {
+  tokens: HudTokens;
+  costUsd: number;
+  contextPct: number;
+  // Authoritative model from `message.model` in the JSONL.
+  model: string | null;
+  updatedAt: number;
+};
+
 export type HudState = {
   session: HudSession | null;
   // Claude Code runtime metadata captured on session.start. Persisted across
@@ -84,9 +98,17 @@ export type HudState = {
   // before any tool fires.
   claudeCodeVersion: string | null;
   defaultModel: string | null;
+  // Top-level convenience mirrors of `sessionMetrics[session?.id]`. Kept in
+  // sync by the reducer so existing UI that reads `state.tokens` etc. needs
+  // no changes. Zeroed when no session is active or no metrics have arrived.
   tokens: HudTokens;
   costUsd: number;
   contextPct: number;
+  // Per-sessionId metrics map. Updated by `turn.metrics` events (from the
+  // transcript poller). The Live cards only display the entry that matches
+  // the current `session?.id`; the other entries exist so future per-session
+  // UI can surface them without re-fetching.
+  sessionMetrics: Readonly<Record<string, HudSessionMetrics>>;
   lastTool: HudLastTool | null;
   lastError: HudLastError | null;
   lastActivityAt: number | null;
@@ -123,6 +145,7 @@ export const EMPTY_STATE: HudState = {
   tokens: { in: 0, out: 0, cached: 0 },
   costUsd: 0,
   contextPct: 0,
+  sessionMetrics: {},
   lastTool: null,
   lastError: null,
   lastActivityAt: null,
@@ -150,6 +173,27 @@ function appendRecent(
   return events;
 }
 
+// Mirror sessionMetrics[active session] into the top-level convenience
+// fields (state.tokens / costUsd / contextPct) so existing UI that reads
+// these fields directly continues to work. Also lifts the JSONL-derived
+// model into state.session.model when the hook never reported one.
+function syncActiveSessionMetrics(state: HudState): HudState {
+  const sid = state.session?.id;
+  if (!sid) return state;
+  const m = state.sessionMetrics[sid];
+  if (!m) return state;
+  const next: HudState = {
+    ...state,
+    tokens: m.tokens,
+    costUsd: m.costUsd,
+    contextPct: m.contextPct,
+  };
+  if (state.session && !state.session.model && m.model) {
+    next.session = { ...state.session, model: m.model };
+  }
+  return next;
+}
+
 // Single source of truth for turning an envelope into the next state.
 // Imported by the RSC for snapshot hydration and by the SSE client for live updates.
 export function reduce(state: HudState, envelope: HudEnvelope): HudState {
@@ -160,54 +204,36 @@ export function reduce(state: HudState, envelope: HudEnvelope): HudState {
     recentEvents: appendRecent(state.recentEvents, envelope),
   };
 
-  // Bootstrap the active session from any event carrying a sessionId. Claude
+  // Bootstrap the active session ONLY when no session is set yet. Claude
   // Code's `SessionStart` hook fires only at session launch, so on a resumed
   // or already-running session (or after a HUD restart) the dedicated
-  // session.start case never runs and the Active Session card is stuck on
-  // its "Waiting…" empty state. Synthesizing the session here means *any*
-  // observed event — prompt.submit, tool.use, turn.stop — is enough to
-  // populate the card. The explicit session.start case below still wins
-  // when it eventually arrives: it overwrites metadata and resets per-
-  // session counters.
-  if ('sessionId' in event) {
-    const sessionIdChanged = next.session !== null && next.session.id !== event.sessionId;
-    if (next.session === null || sessionIdChanged) {
-      next.session = {
-        id: event.sessionId,
-        model:
-          'model' in event && event.model
-            ? event.model
-            : sessionIdChanged
-              ? null
-              : next.session?.model ?? null,
-        cwd:
-          'cwd' in event && event.cwd
-            ? event.cwd
-            : sessionIdChanged
-              ? null
-              : next.session?.cwd ?? null,
-        startedAt: event.ts,
-        endedAt: null,
-      };
-      // Only wipe per-session totals when the sessionId actually flipped to
-      // a different session. A first-time synthesis from null state must
-      // preserve whatever totals follow-up events bring (turn.stop,
-      // agent.complete) — those reducers repopulate naturally from each
-      // event's payload, no zero-out needed.
-      if (sessionIdChanged) {
-        next.tokens = { in: 0, out: 0, cached: 0 };
-        next.costUsd = 0;
-        next.contextPct = 0;
-        next.lastTool = null;
-        next.lastError = null;
-        next.agents = {};
-        next.currentAgent = null;
-      }
-    }
+  // session.start case never runs and the Active Session card would be stuck
+  // on its "Waiting…" empty state. Synthesizing the session from the first
+  // observed event populates the card without waiting for session.start.
+  //
+  // CRITICAL: We do NOT flip `state.session` when a later event arrives with
+  // a *different* sessionId. The transcript poller emits `turn.metrics` for
+  // every active JSONL on disk, so multiple concurrent sessions produce
+  // events on this bus. Auto-flipping would make the Live header bounce
+  // between sessions and wipe metrics on every flip — exactly the flicker
+  // the user reported. Different sessions land in `sessionMetrics`; the
+  // active session is sticky and only changes on an explicit `session.start`.
+  if ('sessionId' in event && next.session === null) {
+    next.session = {
+      id: event.sessionId,
+      model: 'model' in event && event.model ? event.model : null,
+      cwd: 'cwd' in event && event.cwd ? event.cwd : null,
+      startedAt: event.ts,
+      endedAt: null,
+    };
   }
 
   switch (event.type) {
     case 'session.start': {
+      // session.start is the ONLY signal that switches the active session.
+      // Reset everything tied to per-session state — but keep entries for
+      // *other* sessionIds in sessionMetrics, since concurrent sessions
+      // continue to produce events on the bus.
       next.session = {
         id: event.sessionId,
         model: event.model ?? null,
@@ -226,23 +252,18 @@ export function reduce(state: HudState, envelope: HudEnvelope): HudState {
       next.agents = {};
       next.currentAgent = null;
       next.recentEvents = [envelope];
-      return next;
+      // If the transcript poller has already populated metrics for this
+      // session before session.start arrived, mirror them up immediately.
+      return syncActiveSessionMetrics(next);
     }
 
     case 'session.end': {
       if (state.session && state.session.id === event.sessionId) {
         next.session = { ...state.session, endedAt: event.ts };
       }
-      if (event.tokens) {
-        next.tokens = {
-          in: event.tokens.in,
-          out: event.tokens.out,
-          cached: event.tokens.cached ?? 0,
-        };
-      }
-      if (typeof event.costUsd === 'number') {
-        next.costUsd = event.costUsd;
-      }
+      // Tokens / cost are no longer hook-driven; the transcript poller owns
+      // them via turn.metrics. session.end only records that the session
+      // ended.
       next.lastActivityAt = event.ts;
       return next;
     }
@@ -290,20 +311,42 @@ export function reduce(state: HudState, envelope: HudEnvelope): HudState {
     }
 
     case 'turn.stop': {
-      if (event.tokens) {
-        next.tokens = {
+      // turn.stop from the hook channel no longer carries authoritative
+      // tokens/cost/contextPct — those come from `turn.metrics` (transcript
+      // poller). We keep only the activity-timestamp side effect so the
+      // mascot's idle timer resets correctly. Older hook scripts that still
+      // include numeric fields are ignored here on purpose: trusting them
+      // would resurrect the flicker.
+      next.lastActivityAt = event.ts;
+      return next;
+    }
+
+    case 'turn.metrics': {
+      // Authoritative source for tokens / cost / contextPct / model. Always
+      // write to the per-sessionId map; only mirror into top-level state
+      // when the event matches the active session (so concurrent-session
+      // events do not overwrite the displayed numbers).
+      const metrics: HudSessionMetrics = {
+        tokens: {
           in: event.tokens.in,
           out: event.tokens.out,
           cached: event.tokens.cached ?? 0,
-        };
+        },
+        costUsd: event.costUsd ?? 0,
+        contextPct: event.contextPct,
+        model: event.model,
+        updatedAt: event.ts,
+      };
+      const sessionMetrics: Record<string, HudSessionMetrics> = Object.assign(
+        {},
+        next.sessionMetrics,
+      );
+      sessionMetrics[event.sessionId] = metrics;
+      next.sessionMetrics = sessionMetrics;
+      if (next.session && next.session.id === event.sessionId) {
+        next.lastActivityAt = event.ts;
+        return syncActiveSessionMetrics(next);
       }
-      if (typeof event.costUsd === 'number') {
-        next.costUsd = event.costUsd;
-      }
-      if (typeof event.contextPct === 'number') {
-        next.contextPct = event.contextPct;
-      }
-      next.lastActivityAt = event.ts;
       return next;
     }
 
@@ -362,18 +405,9 @@ export function reduce(state: HudState, envelope: HudEnvelope): HudState {
       if (state.currentAgent === event.agentName) {
         next.currentAgent = null;
       }
-      // Subagents consume tokens from the same budget — keep the session totals
-      // up to date like turn.stop does.
-      if (event.tokens) {
-        next.tokens = {
-          in: event.tokens.in,
-          out: event.tokens.out,
-          cached: event.tokens.cached ?? 0,
-        };
-      }
-      if (typeof event.costUsd === 'number') {
-        next.costUsd = event.costUsd;
-      }
+      // Subagent token / cost numbers stay scoped to the agent card. The
+      // session-level cumulative totals come from turn.metrics, which already
+      // accounts for subagent consumption in the parent's JSONL usage.
       next.lastActivityAt = event.ts;
       return next;
     }

@@ -78,12 +78,15 @@ describe('reduce — active session bootstrap (synthesis)', () => {
     expect(s.agents).toEqual({});
   });
 
-  it('a DIFFERENT sessionId flips the active session and resets totals', () => {
+  it('a DIFFERENT sessionId does NOT flip the active session (sticky session)', () => {
+    // Old behavior auto-flipped to whatever sessionId arrived last; that
+    // caused the Live header to bounce between concurrent sessions and wipe
+    // metrics. New contract: state.session only changes on an explicit
+    // session.start. Events from other sessionIds are accepted but do not
+    // re-bind the active session.
     let s = startSession();
     s = reduce(s, env(at(2_000, { type: 'agent.invoke', agentName: 'Explore' })));
     expect(s.currentAgent).toBe('Explore');
-    // Now an event from a different sessionId arrives (e.g., a second
-    // Claude Code instance pointing at the same HUD).
     const otherId = 'sess-other';
     s = reduce(s, {
       id: 'env-other',
@@ -96,13 +99,11 @@ describe('reduce — active session bootstrap (synthesis)', () => {
         model: 'sonnet',
       } as unknown as HudEvent,
     });
-    expect(s.session?.id).toBe(otherId);
-    expect(s.session?.cwd).toBe('/other');
-    expect(s.session?.model).toBe('sonnet');
-    // Counters reset because we genuinely flipped to a new session.
-    expect(s.agents).toEqual({});
-    expect(s.currentAgent).toBeNull();
-    expect(s.tokens).toEqual({ in: 0, out: 0, cached: 0 });
+    // Active session unchanged.
+    expect(s.session?.id).toBe(SID);
+    // Agents map preserved — no spurious reset.
+    expect(s.currentAgent).toBe('Explore');
+    expect(s.agents.Explore).toBeDefined();
   });
 
   it('sessions.snapshot has no sessionId and does NOT populate state.session', () => {
