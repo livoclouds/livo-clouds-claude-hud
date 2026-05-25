@@ -166,6 +166,31 @@ const ErrorEvent = z
   })
   .strict();
 
+// Authoritative per-turn metrics, derived from the live transcript JSONL
+// (~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl) by the server-side
+// transcript tailer (apps/hud/lib/transcript-tailer.ts). Hooks do not carry
+// reliable token/cost/context% data — only `Task` PostToolUse does. This
+// event type exists to make the Live view stable: it is the *only* source
+// the store reads to update Tokens/Context/Model cards, eliminating the
+// flicker that came from sparse, partial hook payloads.
+const TurnMetrics = z
+  .object({
+    type: z.literal('turn.metrics'),
+    sessionId,
+    ts,
+    cwd,
+    // Required: the JSONL always records `message.model` on assistant turns,
+    // so this is the canonical resolution of the model the HUD displays.
+    model: z.string().min(1),
+    tokens,
+    contextPct,
+    // Cumulative USD cost computed by the poller against pricing.json. Optional
+    // because synthetic test events may omit it; the poller always sends it.
+    costUsd: costUsd.optional(),
+    source: z.literal('transcript-jsonl'),
+  })
+  .strict();
+
 // One entry in a sessions snapshot. Mirrors the on-disk format of
 // `~/.claude/sessions/<pid>.json`, which is the source of truth that powers
 // Claude Code's terminal `/agents` view. The HUD does not derive these
@@ -225,6 +250,7 @@ export const HudEventSchema = z.discriminatedUnion('type', [
   PromptSubmit,
   ToolUse,
   TurnStop,
+  TurnMetrics,
   CompactStart,
   CompactEnd,
   AgentInvoke,
@@ -239,6 +265,7 @@ export const HudEventTypes = [
   'prompt.submit',
   'tool.use',
   'turn.stop',
+  'turn.metrics',
   'compact.start',
   'compact.end',
   'agent.invoke',
@@ -255,6 +282,7 @@ export type SessionEndEvent = Extract<HudEvent, { type: 'session.end' }>;
 export type PromptSubmitEvent = Extract<HudEvent, { type: 'prompt.submit' }>;
 export type ToolUseEvent = Extract<HudEvent, { type: 'tool.use' }>;
 export type TurnStopEvent = Extract<HudEvent, { type: 'turn.stop' }>;
+export type TurnMetricsEvent = Extract<HudEvent, { type: 'turn.metrics' }>;
 export type CompactStartEvent = Extract<HudEvent, { type: 'compact.start' }>;
 export type CompactEndEvent = Extract<HudEvent, { type: 'compact.end' }>;
 export type AgentInvokeEvent = Extract<HudEvent, { type: 'agent.invoke' }>;

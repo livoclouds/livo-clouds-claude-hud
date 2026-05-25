@@ -14,6 +14,14 @@ export function SessionCard() {
   const sessionName = useHud((s) =>
     s.session ? (s.codeSessions[s.session.id]?.name ?? null) : null,
   );
+  // Authoritative model fallback chain: hook session.start → transcript
+  // poller's JSONL `message.model` → defaultModel. Surfaces "Loading…"
+  // (not "—") while none have arrived so the user knows the HUD is alive,
+  // not broken.
+  const metricsModel = useHud((s) =>
+    s.session ? s.sessionMetrics[s.session.id]?.model ?? null : null,
+  );
+  const defaultModel = useHud((s) => s.defaultModel);
   const hydrated = useHudHydrated();
   const now = useGlobalTick('fast');
 
@@ -35,6 +43,7 @@ export function SessionCard() {
 
   const idLabel = truncate(session.id, 24);
   const cwdLabel = session.cwd ? basename(session.cwd) : null;
+  const resolvedModel = session.model ?? metricsModel ?? defaultModel ?? null;
   const ended = session.endedAt !== null;
 
   return (
@@ -76,8 +85,8 @@ export function SessionCard() {
       <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
         <div>
           <p className="hud-fg-muted">Model</p>
-          <p className="hud-fg-soft mt-1 font-mono" title={session.model ?? undefined}>
-            {session.model ? truncate(session.model, 22) : '—'}
+          <p className="hud-fg-soft mt-1 font-mono" title={resolvedModel ?? undefined}>
+            {resolvedModel ? truncate(resolvedModel, 22) : 'Loading…'}
           </p>
         </div>
         <div>

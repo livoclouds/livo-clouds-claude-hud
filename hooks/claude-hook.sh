@@ -310,10 +310,10 @@ EVENT_JSON="$(printf '%s' "$PAYLOAD" | jq -c \
   | with_entries(select(.value != null))
   | # Per-type field whitelist matches HudEventSchema (.strict).
     if   $type == "session.start"  then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","claudeCodeVersion","defaultModel"]           | index($k)))
-    elif $type == "session.end"    then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","tokens","costUsd","durationMs"]              | index($k)))
+    elif $type == "session.end"    then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","durationMs"]                                    | index($k)))
     elif $type == "prompt.submit"  then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model"]                                              | index($k)))
     elif $type == "tool.use"       then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","tool","toolInput","durationMs"]              | index($k)))
-    elif $type == "turn.stop"      then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","tokens","costUsd","contextPct","durationMs"] | index($k)))
+    elif $type == "turn.stop"      then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","durationMs"]                                    | index($k)))
     elif $type == "compact.start"  then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model"]                                              | index($k)))
     elif $type == "agent.invoke"   then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","agentName","agentDescription","prompt"]       | index($k)))
     elif $type == "agent.complete" then with_entries(select(.key as $k | ["type","sessionId","ts","cwd","model","agentName","tokens","costUsd","durationMs"]  | index($k)))

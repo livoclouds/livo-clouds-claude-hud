@@ -22,7 +22,11 @@ const BAND_COLOR: Record<ReturnType<typeof contextBand>, string> = {
 
 export function ContextRing() {
   const contextPct = useHud((s) => s.contextPct);
-  const loading = useHud((s) => s.lastActivityAt === null);
+  const loading = useHud((s) => {
+    if (!s.session) return true;
+    return s.sessionMetrics[s.session.id] === undefined;
+  });
+  const currentAgent = useHud((s) => s.currentAgent);
   const clamped = Math.max(0, Math.min(100, contextPct));
   const band = contextBand(clamped);
   const reduceMotion = useReducedMotion();
@@ -42,7 +46,14 @@ export function ContextRing() {
   return (
     <LongPressable onLongPress={() => show('context')}>
       <div className="hud-card p-6">
-        <p className="hud-fg-muted text-xs uppercase tracking-wider">Context</p>
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="hud-fg-muted text-xs uppercase tracking-wider">Context</p>
+          {currentAgent && (
+            <p className="hud-fg-muted text-[10px] uppercase tracking-wider">
+              Subagent: <span className="hud-fg">{currentAgent}</span>
+            </p>
+          )}
+        </div>
         {loading ? (
           <div className="mt-4 flex items-center justify-center">
             <Skeleton className="h-[140px] w-[140px] rounded-full" />

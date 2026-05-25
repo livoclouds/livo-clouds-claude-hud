@@ -132,13 +132,25 @@ function applyEvent(bundle: DayBundle, event: HudEvent): void {
       return;
     }
     case 'turn.stop': {
-      if (event.tokens) {
-        agg.tokensIn = event.tokens.in;
-        agg.tokensOut = event.tokens.out;
-        agg.tokensCached = event.tokens.cached ?? agg.tokensCached;
-      }
+      // turn.stop from hooks no longer carries authoritative numbers; the
+      // transcript poller is the source of truth via turn.metrics. Older
+      // events with these fields (e.g., from legacy hook scripts replayed
+      // from disk) are intentionally ignored here so a poller-derived row
+      // does not get clobbered by stale hook data.
+      return;
+    }
+    case 'turn.metrics': {
+      agg.tokensIn = event.tokens.in;
+      agg.tokensOut = event.tokens.out;
+      agg.tokensCached = event.tokens.cached ?? agg.tokensCached;
       if (typeof event.costUsd === 'number') agg.costUsd = event.costUsd;
-      if (typeof event.contextPct === 'number') agg.contextPct = event.contextPct;
+      agg.contextPct = event.contextPct;
+      return;
+    }
+    case 'agent.invoke':
+    case 'agent.complete': {
+      // Subagent lifecycle does not roll into the day's per-session aggregate.
+      // (The Agents page reads from the in-memory store, not these bundles.)
       return;
     }
     case 'error': {

@@ -164,7 +164,12 @@ refresh_jsonl_maps() {
   }
 
   while IFS=$'\t' read -r f mtime_s; do
-    [ -z "$f" ] || [ -z "$mtime_s" ] && continue
+    if [ -z "$f" ] || [ -z "$mtime_s" ]; then
+      continue
+    fi
+    case "$mtime_s" in
+      ''|*[!0-9]*) continue ;;
+    esac
     local base sid ms
     base="$(basename "$f")"
     sid="${base%.jsonl}"
@@ -250,6 +255,27 @@ read_pins_set() {
   jq 'reduce .[] as $sid ({}; .[$sid] = true)' "$pins_file" 2>/dev/null
 }
 
+ensure_json() {
+  # Validate that $1 is valid JSON (uses `jq empty` for the cheap check).
+  # If invalid or empty, return the fallback in $2 ("{}" by default) and log
+  # which argjson source went bad. Prevents `--argjson` from aborting the
+  # entire snapshot when any helper returns malformed output (root cause of
+  # the historical "invalid JSON text passed to --argjson" loop).
+  local value="$1"
+  local fallback="${2:-\{\}}"
+  local label="${3:-unknown}"
+  if [ -z "$value" ]; then
+    printf '%s' "$fallback"
+    return 0
+  fi
+  if printf '%s' "$value" | jq empty >/dev/null 2>&1; then
+    printf '%s' "$value"
+  else
+    printf '[sessions-poller] warn: %s produced invalid JSON, falling back to %s\n' "$label" "$fallback" >&2
+    printf '%s' "$fallback"
+  fi
+}
+
 build_snapshot() {
   # Source of truth for the buckets that match the terminal `/agents` view:
   #   ~/.claude/jobs/<short>/state.json — semantic daemon state per session
@@ -261,13 +287,17 @@ build_snapshot() {
   # session file so a freshly-launched session still surfaces. A third pass
   # (build_standalone_map) covers plain `claude` sessions that exist only
   # as a JSONL on disk.
-  local activity="${1:-{}}"
-  local standalone="${2:-{}}"
-  local sessions_map pins
-  sessions_map="$(build_sessions_map)"
-  [ -z "$sessions_map" ] && sessions_map="{}"
-  pins="$(read_pins_set)"
-  [ -z "$pins" ] && pins="{}"
+  local activity standalone sessions_map pins
+  activity="$(ensure_json "${1:-}" '{}' activity)"
+  standalone="$(ensure_json "${2:-}" '{}' standalone)"
+  sessions_map="$(ensure_json "$(build_sessions_map)" '{}' sessions_map)"
+  pins="$(ensure_json "$(read_pins_set)" '{}' pins)"
+
+  local now_s
+  now_s="$(date +%s)"
+  case "$now_s" in
+    ''|*[!0-9]*) now_s=0 ;;
+  esac
 
   # Collect all state.json files (one per daemon-managed session) into a
   # temp JSON array. Empty array when the daemon hasn't created any jobs.
@@ -293,7 +323,7 @@ build_snapshot() {
     --argjson activity "$activity" \
     --argjson pins "$pins" \
     --argjson standaloneMap "$standalone" \
-    --argjson nowS "$(date +%s)" \
+    --argjson nowS "$now_s" \
     '
     # Helper: parse the state.json ISO-8601 string (e.g. 2026-05-22T23:26:26.133Z)
     # into a ms-epoch number. Used as a fallback for startedAt/updatedAt when

@@ -279,11 +279,31 @@ livo-clouds-claude-hud/
 ├── packages/
 │   └── contracts/               # Zod schemas shared by hook + app
 └── hooks/
-    ├── claude-hook.sh           # Drop-in script for ~/.claude/settings.json
-    └── sessions-poller.sh       # Sidecar daemon — feeds the Sessions panel
-                                 # by scanning ~/.claude/sessions/*.json.
-                                 # Auto-started by apps/hud/instrumentation.ts;
-                                 # opt out with HUD_DISABLE_POLLER=1.
+    ├── claude-hook.sh           # Drop-in script for ~/.claude/settings.json.
+    │                            # Emits state-machine events only (session
+    │                            # lifecycle, prompts, tools, compaction).
+    │                            # Does NOT carry tokens / cost / contextPct —
+    │                            # the transcript poller below owns those.
+    ├── sessions-poller.sh       # Sidecar — scans ~/.claude/sessions/*.json
+    │                            # (PTY/terminal sessions, mirroring /agents)
+    │                            # and ~/.claude/projects/*/*.jsonl mtimes to
+    │                            # POST `sessions.snapshot` events. Auto-
+    │                            # started by apps/hud/instrumentation.ts; opt
+    │                            # out with HUD_DISABLE_POLLER=1.
+    └── transcript-poller.sh     # Sidecar — tails per-session JSONL
+                                 # transcripts at
+                                 # ~/.claude/projects/<url-encoded-cwd>/
+                                 #   <sessionId>.jsonl
+                                 # Each line carries `message.model` and
+                                 # `message.usage` for assistant turns and
+                                 # `tool_use`/`tool_result` for subagents.
+                                 # The poller emits authoritative
+                                 # `turn.metrics` (tokens, cost via
+                                 # packages/contracts/src/pricing.json,
+                                 # contextPct) and
+                                 # `agent.invoke`/`agent.complete` events.
+                                 # Opt out with
+                                 # HUD_DISABLE_TRANSCRIPT_POLLER=1.
 ```
 
 Workspaces via **pnpm**. Node ≥ 22. TypeScript `strict: true`.

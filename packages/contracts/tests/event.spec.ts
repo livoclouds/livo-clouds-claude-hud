@@ -16,6 +16,7 @@ import toolUseEdit from './fixtures/tool-use-edit.json' with { type: 'json' };
 import toolUseBash from './fixtures/tool-use-bash.json' with { type: 'json' };
 import turnStopOk from './fixtures/turn-stop-ok.json' with { type: 'json' };
 import turnStopError from './fixtures/turn-stop-error.json' with { type: 'json' };
+import turnMetrics from './fixtures/turn-metrics.json' with { type: 'json' };
 import compactStart from './fixtures/compact-start.json' with { type: 'json' };
 import compactEnd from './fixtures/compact-end.json' with { type: 'json' };
 import agentInvoke from './fixtures/agent-invoke.json' with { type: 'json' };
@@ -31,6 +32,7 @@ const positives = [
   ['tool.use (Bash)', toolUseBash],
   ['turn.stop (ok)', turnStopOk],
   ['turn.stop (error)', turnStopError],
+  ['turn.metrics', turnMetrics],
   ['compact.start', compactStart],
   ['compact.end', compactEnd],
   ['agent.invoke', agentInvoke],

@@ -1,17 +1,27 @@
 #!/usr/bin/env bash
-# transcript-poller.sh — synthesises `turn.stop` events from Claude Code's
-# per-session JSONL transcripts.
+# transcript-poller.sh — synthesises authoritative `turn.metrics` and
+# `agent.invoke`/`agent.complete` events from Claude Code's per-session
+# JSONL transcripts.
 #
-# Claude Code's hook payloads never carry token/cost/context fields on this
-# machine (Stop hook is not firing with usage data), but the on-disk
-# transcript at ~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl records
-# `message.usage` on every assistant turn. This sidecar tails those files,
-# sums usage cumulatively per session, computes USD cost and context%
-# against packages/contracts/src/pricing.json, and POSTs a `turn.stop` to
-# the HUD ingest endpoint whenever a file changes. Together with the
-# existing reducer (which replaces totals on each turn.stop), the HUD's
-# TOKENS / COST / CONTEXT panels stay in sync with what Claude Code is
-# actually consuming.
+# Claude Code's hook payloads do not carry reliable token/cost/context fields
+# (only the `Task` PostToolUse for subagents does), but the on-disk transcript
+# at ~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl records both
+# `message.usage` on every assistant turn AND every `tool_use` invocation
+# (including `Task` subagents with their `subagent_type`). This sidecar tails
+# those files and emits:
+#
+#   - turn.metrics  — cumulative tokens / cost / context% / model per session,
+#                     used by the store as the canonical source of numbers
+#                     (eliminates the flicker that hook-derived turn.stop
+#                     produced).
+#   - agent.invoke  — when a `Task` tool_use is observed (subagent started).
+#   - agent.complete — when the matching tool_result is observed (with the
+#                     subagent's own usage / total_cost_usd extracted).
+#
+# Together with the corresponding store reducer (which keeps a per-sessionId
+# metrics map and never auto-flips the active session on non-session.start
+# events), the HUD's TOKENS / COST / CONTEXT panels stay in sync and never
+# flicker between concurrent sessions.
 #
 # Run it as a sidecar — apps/hud/instrumentation-node.ts auto-spawns it on
 # server startup. Opt out with HUD_DISABLE_TRANSCRIPT_POLLER=1.
@@ -71,14 +81,14 @@ bail() {
   exit 0
 }
 
-command -v jq   >/dev/null 2>&1 || bail turn.stop missing_jq
-command -v curl >/dev/null 2>&1 || bail turn.stop missing_curl
+command -v jq   >/dev/null 2>&1 || bail turn.metrics missing_jq
+command -v curl >/dev/null 2>&1 || bail turn.metrics missing_curl
 
 if [ -f "$CONFIG_FILE" ]; then
   # shellcheck disable=SC1090
   . "$CONFIG_FILE"
 else
-  bail turn.stop missing_config
+  bail turn.metrics missing_config
 fi
 
 : "${HUD_INGEST_TOKEN:=}"
@@ -88,7 +98,7 @@ fi
 : "${TRANSCRIPT_STATE_DIR:=${HOME}/.claude/hud-transcript-state}"
 : "${PRICING_FILE:=}"
 
-[ -n "$HUD_INGEST_TOKEN" ] || bail turn.stop missing_token
+[ -n "$HUD_INGEST_TOKEN" ] || bail turn.metrics missing_token
 
 case "$TRANSCRIPT_POLLER_INTERVAL" in
   ''|*[!0-9]*) TRANSCRIPT_POLLER_INTERVAL=2 ;;
@@ -110,13 +120,13 @@ if [ -z "$PRICING_FILE" ]; then
   done
 fi
 if [ -z "$PRICING_FILE" ] || [ ! -f "$PRICING_FILE" ]; then
-  bail turn.stop missing_pricing
+  bail turn.metrics missing_pricing
 fi
 PRICING="$(cat "$PRICING_FILE")"
 
 mkdir -p "$TRANSCRIPT_STATE_DIR" 2>/dev/null
 if [ ! -d "$TRANSCRIPT_STATE_DIR" ] || [ ! -w "$TRANSCRIPT_STATE_DIR" ]; then
-  log_line turn.stop fatal state_dir_unwritable
+  log_line turn.metrics fatal state_dir_unwritable
   exit 1
 fi
 
@@ -129,9 +139,9 @@ else
   STAT_SIZE_FMT='-c %s'
 fi
 
-log_line turn.stop start "src=transcript interval=${TRANSCRIPT_POLLER_INTERVAL}s projects=$PROJECTS_DIR state=$TRANSCRIPT_STATE_DIR url=$HUD_URL"
+log_line turn.metrics start "src=transcript interval=${TRANSCRIPT_POLLER_INTERVAL}s projects=$PROJECTS_DIR state=$TRANSCRIPT_STATE_DIR url=$HUD_URL"
 
-trap 'log_line turn.stop stop "src=transcript signal"; exit 0' INT TERM
+trap 'log_line turn.metrics stop "src=transcript signal"; exit 0' INT TERM
 
 process_jsonl() {
   local jsonl="$1"
@@ -228,6 +238,117 @@ process_jsonl() {
   fi
 
   local new_offset=$((prev_offset + complete_bytes))
+
+  # Subagent detection: scan the new complete lines for (a) assistant messages
+  # containing tool_use entries with name="Agent" and a subagent_type — these
+  # become `agent.invoke` events; and (b) user messages whose `toolUseResult`
+  # carries `agentType` (Claude Code's authoritative summary of a subagent
+  # run) — these become `agent.complete` events with the subagent's own
+  # cumulative usage and duration. The hook channel does not reliably expose
+  # subagent_type on PreToolUse (upstream issue anthropics/claude-code#40140),
+  # so the transcript is the only fiable source.
+  local agent_events
+  agent_events="$(printf '%s' "$complete_part" | jq -Rc '
+    def iso2ms:
+      if . == null or . == "" then 0
+      else (sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601 * 1000)
+      end;
+    (try fromjson catch null) as $o
+    | select($o != null)
+    | (
+        # agent.invoke from assistant tool_use entries (name=Agent + subagent_type).
+        if $o.type == "assistant" then
+          ($o.message.content // [])
+          | map(select(.type == "tool_use" and .name == "Agent" and .input.subagent_type != null))
+          | map({
+              kind: "invoke",
+              agentName: .input.subagent_type,
+              description: (.input.description // ""),
+              prompt: (.input.prompt // ""),
+              ts: ($o.timestamp | iso2ms),
+              cwd: ($o.cwd // "")
+            })
+          | .[]
+        # agent.complete from user-side toolUseResult (Claude Code summary).
+        elif $o.type == "user" and ($o.toolUseResult.agentType // null) != null then
+          {
+            kind: "complete",
+            agentName: $o.toolUseResult.agentType,
+            tokensIn:  ($o.toolUseResult.usage.input_tokens                // 0),
+            tokensOut: ($o.toolUseResult.usage.output_tokens               // 0),
+            cached:    (($o.toolUseResult.usage.cache_read_input_tokens     // 0)
+                       + ($o.toolUseResult.usage.cache_creation_input_tokens // 0)),
+            durationMs: ($o.toolUseResult.totalDurationMs // 0),
+            status: ($o.toolUseResult.status // ""),
+            ts: ($o.timestamp | iso2ms),
+            cwd: ($o.cwd // "")
+          }
+        else empty end
+      )
+  ' 2>/dev/null)"
+
+  # POST each agent event. Best-effort — failures are logged but do not abort
+  # the metric emission below.
+  if [ -n "$agent_events" ]; then
+    while IFS= read -r ev; do
+      [ -z "$ev" ] && continue
+      local kind agent_ts agent_cwd
+      kind="$(jq -r '.kind' <<<"$ev")"
+      agent_ts="$(jq -r '.ts' <<<"$ev")"
+      [ "$agent_ts" -gt 0 ] 2>/dev/null || agent_ts="$(date +%s)000"
+      agent_cwd="$(jq -r '.cwd' <<<"$ev")"
+      local agent_event_json
+      if [ "$kind" = "invoke" ]; then
+        agent_event_json="$(jq -n \
+          --arg sid "$sid" \
+          --argjson ts "$agent_ts" \
+          --arg cwd "$agent_cwd" \
+          --arg agentName "$(jq -r '.agentName' <<<"$ev")" \
+          --arg description "$(jq -r '.description' <<<"$ev")" \
+          --arg prompt "$(jq -r '.prompt' <<<"$ev")" \
+          '{
+            type: "agent.invoke",
+            sessionId: $sid,
+            ts: $ts,
+            cwd: ($cwd | if . == "" then null else . end),
+            agentName: $agentName,
+            agentDescription: ($description | if . == "" then null else . end),
+            prompt: ($prompt | if . == "" then null else . end)
+          } | with_entries(select(.value != null))')"
+      else
+        local err_msg
+        err_msg="$(jq -r 'if .status == "error" then "subagent reported error" else "" end' <<<"$ev")"
+        agent_event_json="$(jq -n \
+          --arg sid "$sid" \
+          --argjson ts "$agent_ts" \
+          --arg cwd "$agent_cwd" \
+          --arg agentName "$(jq -r '.agentName' <<<"$ev")" \
+          --argjson tIn "$(jq -r '.tokensIn' <<<"$ev")" \
+          --argjson tOut "$(jq -r '.tokensOut' <<<"$ev")" \
+          --argjson tCached "$(jq -r '.cached' <<<"$ev")" \
+          --argjson durMs "$(jq -r '.durationMs' <<<"$ev")" \
+          --arg err "$err_msg" \
+          '{
+            type: "agent.complete",
+            sessionId: $sid,
+            ts: $ts,
+            cwd: ($cwd | if . == "" then null else . end),
+            agentName: $agentName,
+            tokens: { in: $tIn, out: $tOut, cached: $tCached },
+            durationMs: $durMs,
+            error: ($err | if . == "" then null else . end)
+          } | with_entries(select(.value != null))')"
+      fi
+      curl -sS -o /dev/null --max-time 5 \
+        -X POST \
+        -H "Authorization: Bearer ${HUD_INGEST_TOKEN}" \
+        -H 'Content-Type: application/json' \
+        --data-binary "$agent_event_json" \
+        "${HUD_URL%/}/api/events" 2>/dev/null \
+        && log_line "agent.$kind" ok "src=transcript sid=${sid:0:8}" \
+        || log_line "agent.$kind" fail "src=transcript sid=${sid:0:8}"
+    done <<< "$agent_events"
+  fi
 
   # Parse new assistant turns from the complete lines only (one JSON object
   # per output line). Malformed or non-assistant lines are silently dropped.
@@ -351,10 +472,16 @@ process_jsonl() {
     printf "%.4f", p
   }')"
 
-  # Build the HudEvent. The hook contract requires `tokens.in`/`tokens.out`
-  # to be present together; cached is optional but we always send the
-  # combined cache_read + cache_creation so the dashboard shows real numbers
-  # for cached usage.
+  # Build the HudEvent (turn.metrics). The contract requires `model` to be a
+  # non-empty string and `tokens.in/out` to be present together; `source` is
+  # a discriminator so future ingest sources (OTel, etc.) can be told apart.
+  # If the transcript line did not carry a model (rare — only happens for the
+  # very first user message before any assistant turn), we skip the emission
+  # entirely rather than ship an event the schema would reject.
+  if [ -z "$model" ]; then
+    return 0
+  fi
+
   local event_json
   event_json="$(jq -n \
     --arg sid "$sid" \
@@ -367,14 +494,15 @@ process_jsonl() {
     --argjson cost "$cost" \
     --argjson ctx "$ctx_pct" \
     '{
-      type: "turn.stop",
+      type: "turn.metrics",
       sessionId: $sid,
       ts: $ts,
       cwd: ($cwd | if . == "" then null else . end),
-      model: ($model | if . == "" then null else . end),
+      model: $model,
       tokens: { in: $tIn, out: $tOut, cached: $tCached },
+      contextPct: $ctx,
       costUsd: $cost,
-      contextPct: $ctx
+      source: "transcript-jsonl"
     }
     | with_entries(select(.value != null))')"
 
@@ -388,7 +516,7 @@ process_jsonl() {
     "${HUD_URL%/}/api/events" 2>/dev/null)" || http=""
 
   if [ "$http" = "200" ] || [ "$http" = "204" ]; then
-    log_line turn.stop ok "src=transcript sid=${sid:0:8} in=$total_in out=$total_out cached=$total_cached cost=$cost"
+    log_line turn.metrics ok "src=transcript sid=${sid:0:8} in=$total_in out=$total_out cached=$total_cached cost=$cost"
     jq -n \
       --argjson size "$size" \
       --argjson mtime "$mtime" \
@@ -422,7 +550,7 @@ process_jsonl() {
         emitted: true
       }' > "$state_file" 2>/dev/null || true
   else
-    log_line turn.stop fail "src=transcript http=${http:-error} sid=${sid:0:8}"
+    log_line turn.metrics fail "src=transcript http=${http:-error} sid=${sid:0:8}"
     # Do not persist state — next tick will retry from the same offset.
   fi
 }
