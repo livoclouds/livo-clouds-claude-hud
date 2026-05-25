@@ -11,12 +11,14 @@ import { AgentDetailSheetProvider } from './AgentDetailSheet';
 import { SessionDetailSheetProvider } from './SessionDetailSheet';
 import { ErrorPill } from './ErrorPill';
 import { StickyMascot } from './StickyMascot';
+import { PullToRefresh } from '../gestures/PullToRefresh';
 
 export function LiveView() {
   return (
     <MetricSheetProvider>
       <AgentDetailSheetProvider>
         <SessionDetailSheetProvider>
+          <PullToRefresh>
           <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10 kiosk:max-w-[1600px]">
           <ErrorPill />
 
@@ -25,7 +27,7 @@ export function LiveView() {
               the panels below. data-no-swipe prevents the sticky area from
               swallowing horizontal swipes between tabs. */}
           <section
-            className="sticky top-14 z-20 flex justify-center py-2"
+            className="sticky top-14 z-20 flex justify-center py-2 pb-[max(env(safe-area-inset-bottom),0.75rem)]"
             data-no-swipe="true"
           >
             <StickyMascot />
@@ -59,6 +61,7 @@ export function LiveView() {
             <AgentsDashboard />
           </section>
           </main>
+          </PullToRefresh>
         </SessionDetailSheetProvider>
       </AgentDetailSheetProvider>
     </MetricSheetProvider>

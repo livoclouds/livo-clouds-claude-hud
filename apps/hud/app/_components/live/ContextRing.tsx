@@ -7,6 +7,7 @@ import { contextBand } from '@/lib/thresholds';
 import { formatPct } from '@/lib/format';
 import { LongPressable } from '../LongPressable';
 import { useMetricSheet } from '../MetricSheet';
+import { Skeleton } from '../ui/Skeleton';
 
 const SIZE = 140;
 const STROKE = 12;
@@ -21,6 +22,7 @@ const BAND_COLOR: Record<ReturnType<typeof contextBand>, string> = {
 
 export function ContextRing() {
   const contextPct = useHud((s) => s.contextPct);
+  const loading = useHud((s) => s.lastActivityAt === null);
   const clamped = Math.max(0, Math.min(100, contextPct));
   const band = contextBand(clamped);
   const reduceMotion = useReducedMotion();
@@ -41,51 +43,57 @@ export function ContextRing() {
     <LongPressable onLongPress={() => show('context')}>
       <div className="hud-card p-6">
         <p className="hud-fg-muted text-xs uppercase tracking-wider">Context</p>
-        <div className="mt-4 flex items-center justify-center">
-          <svg
-            width={SIZE}
-            height={SIZE}
-            viewBox={`0 0 ${SIZE} ${SIZE}`}
-            role="img"
-            aria-label={`Context usage ${clamped.toFixed(0)} percent (${band})`}
-          >
-            <circle
-              cx={SIZE / 2}
-              cy={SIZE / 2}
-              r={RADIUS}
-              stroke="var(--color-hud-card-border)"
-              strokeWidth={STROKE}
-              fill="none"
-            />
-            <motion.circle
-              cx={SIZE / 2}
-              cy={SIZE / 2}
-              r={RADIUS}
-              stroke={BAND_COLOR[band]}
-              strokeWidth={STROKE}
-              strokeLinecap="round"
-              fill="none"
-              strokeDasharray={CIRCUMFERENCE}
-              style={{
-                strokeDashoffset: reduceMotion
-                  ? CIRCUMFERENCE * (1 - clamped / 100)
-                  : dashOffset,
-                transform: `rotate(-90deg)`,
-                transformOrigin: '50% 50%',
-              }}
-            />
-            <text
-              x="50%"
-              y="50%"
-              dominantBaseline="middle"
-              textAnchor="middle"
-              className="font-mono"
-              style={{ fontSize: 22, fill: 'var(--color-hud-fg)' }}
+        {loading ? (
+          <div className="mt-4 flex items-center justify-center">
+            <Skeleton className="h-[140px] w-[140px] rounded-full" />
+          </div>
+        ) : (
+          <div className="mt-4 flex items-center justify-center">
+            <svg
+              width={SIZE}
+              height={SIZE}
+              viewBox={`0 0 ${SIZE} ${SIZE}`}
+              role="img"
+              aria-label={`Context usage ${clamped.toFixed(0)} percent (${band})`}
             >
-              {formatPct(clamped)}
-            </text>
-          </svg>
-        </div>
+              <circle
+                cx={SIZE / 2}
+                cy={SIZE / 2}
+                r={RADIUS}
+                stroke="var(--color-hud-card-border)"
+                strokeWidth={STROKE}
+                fill="none"
+              />
+              <motion.circle
+                cx={SIZE / 2}
+                cy={SIZE / 2}
+                r={RADIUS}
+                stroke={BAND_COLOR[band]}
+                strokeWidth={STROKE}
+                strokeLinecap="round"
+                fill="none"
+                strokeDasharray={CIRCUMFERENCE}
+                style={{
+                  strokeDashoffset: reduceMotion
+                    ? CIRCUMFERENCE * (1 - clamped / 100)
+                    : dashOffset,
+                  transform: `rotate(-90deg)`,
+                  transformOrigin: '50% 50%',
+                }}
+              />
+              <text
+                x="50%"
+                y="50%"
+                dominantBaseline="middle"
+                textAnchor="middle"
+                className="font-mono"
+                style={{ fontSize: 22, fill: 'var(--color-hud-fg)' }}
+              >
+                {formatPct(clamped)}
+              </text>
+            </svg>
+          </div>
+        )}
         <p className="hud-fg-muted mt-3 text-center text-xs">
           {band === 'critical'
             ? 'Critical · compact soon'

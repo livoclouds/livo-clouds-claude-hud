@@ -350,7 +350,7 @@
             </div>
           </li>
 
-          <li class="phase" data-phase-progress="0" data-phase-status="pending" data-finding-count="7">
+          <li class="phase" data-phase-progress="100" data-phase-status="completed" data-finding-count="6">
             <div class="phase-head">
               <div style="flex: 1; min-width: 240px">
                 <div class="phase-num">Phase 3</div>
@@ -358,7 +358,7 @@
               </div>
               <div class="phase-meta">
                 <span class="badge medium">Medium</span>
-                <span class="status" data-status="pending">Pending</span>
+                <span class="status" data-status="completed">Completed</span>
               </div>
             </div>
             <p class="phase-detail">
@@ -367,22 +367,45 @@
               event" requirement). Pull-to-refresh gesture on the live view. WCAG AA
               contrast fixes for muted and soft text. Larger MetricSheet grab-bar.
               Landscape-aware mascot shrink thresholds and safe-area-inset guard.
+              <br /><br />
+              <strong>Resolved 2026-05-24.</strong>
+              U5: <code>--color-hud-fg-soft</code> raised to 0.82 opacity and
+              <code>--color-hud-fg-muted</code> to 0.62 (dark) / 0.65 (light) in
+              <code>globals.css</code> — all three declaration blocks updated consistently.
+              U6: New <code>&lt;Skeleton&gt;</code> component (<code>_components/ui/Skeleton.tsx</code>)
+              with gradient-sweep shimmer (<code>@keyframes shimmer</code> in <code>globals.css</code>)
+              and static fallback for <code>prefers-reduced-motion</code>.
+              <code>TokenStat</code>, <code>CostStat</code>, and <code>ContextRing</code>
+              show skeleton branches when <code>lastActivityAt === null</code> (no events yet).
+              U8: MetricSheet grab-bar enlarged from <code>h-1.5 w-12</code> to
+              <code>h-[5px] w-16 opacity-60</code>.
+              U9: <code>useEventStream</code> now returns a stable <code>reconnect()</code>
+              callback (via internal ref); exposed through new <code>HudReconnectContext</code>
+              in <code>HudProvider</code> and consumed by new
+              <code>&lt;PullToRefresh&gt;</code> component wrapping <code>LiveView</code>.
+              Touch-only, activates at <code>scrollY === 0</code>, rubber-bands up to 80 px,
+              shows spinner for 1.5 s, respects <code>prefers-reduced-motion</code>.
+              U10: New <code>useIsLandscape()</code> hook (<code>lib/use-orientation.ts</code>)
+              using <code>matchMedia</code>; <code>StickyMascot</code> uses thresholds
+              40 / 120 px in landscape vs. 80 / 240 px in portrait.
+              U11: Sticky mascot section in <code>LiveView</code> gains
+              <code>pb-[max(env(safe-area-inset-bottom),0.75rem)]</code> guard.
             </p>
             <div class="findings-list">
-              <span class="finding-chip">U5</span>
-              <span class="finding-chip">U6</span>
-              <span class="finding-chip">U8</span>
-              <span class="finding-chip">U9</span>
-              <span class="finding-chip">U10</span>
-              <span class="finding-chip">U11</span>
+              <span class="finding-chip resolved">U5</span>
+              <span class="finding-chip resolved">U6</span>
+              <span class="finding-chip resolved">U8</span>
+              <span class="finding-chip resolved">U9</span>
+              <span class="finding-chip resolved">U10</span>
+              <span class="finding-chip resolved">U11</span>
             </div>
             <div class="phase-progress">
-              <div class="bar-track"><div class="bar-fill" style="width: 0%"></div></div>
-              <div class="phase-pct">0%</div>
+              <div class="bar-track"><div class="bar-fill" style="width: 100%"></div></div>
+              <div class="phase-pct">100%</div>
             </div>
             <div class="phase-actions">
               <a href="./phases/phase-3-visual-polish.md">Phase notes →</a>
-              <span style="color: var(--fg-mute)">No PR yet</span>
+              <span style="color: var(--fg-mute)">Merged 2026-05-24</span>
             </div>
           </li>
 
@@ -509,7 +532,7 @@
         or <code>blocked</code>, and replace the "No PR yet" span with a link.
         The script below recomputes everything on load.
         <br /><br />
-        Last regenerated: <span id="lastUpdated">2026-05-24 (v2 published — 39 findings: 3 high, 22 medium, 14 low across I/U/O series)</span>.
+        Last regenerated: <span id="lastUpdated">2026-05-24 (Phase 3 completed — U5, U6, U8, U9, U10, U11 resolved)</span>.
       </footer>
     </div>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { HudEventSchema } from '@livoclouds/contracts';
 import type { HudStoreApi } from './store';
 
@@ -79,9 +79,17 @@ export type UseEventStreamOptions = {
   onStatusChange?: (status: SseStatus) => void;
 };
 
-export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions = {}): void {
+export type UseEventStreamResult = {
+  reconnect: () => void;
+};
+
+export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions = {}): UseEventStreamResult {
   const url = opts.url ?? '/api/stream';
   const { onStatusChange } = opts;
+
+  // Stable ref so callers always hold a live pointer to reopenNow even across
+  // re-renders, without the function itself being a reactive dependency.
+  const reopenRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     let connection: Connection | null = null;
@@ -189,6 +197,7 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
       notify('reconnecting');
     };
 
+    reopenRef.current = reopenNow;
     notify('connecting');
     open();
     document.addEventListener('visibilitychange', onVisibility);
@@ -197,6 +206,7 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
 
     return () => {
       cancelled = true;
+      reopenRef.current = () => {};
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
@@ -207,4 +217,7 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
       }
     };
   }, [store, url, onStatusChange]);
+
+  const reconnect = useCallback(() => reopenRef.current(), []);
+  return { reconnect };
 }

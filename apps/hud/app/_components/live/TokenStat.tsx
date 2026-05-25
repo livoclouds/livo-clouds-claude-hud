@@ -5,20 +5,30 @@ import { AnimatedNumber } from './AnimatedNumber';
 import { formatTokens } from '@/lib/format';
 import { LongPressable } from '../LongPressable';
 import { useMetricSheet } from '../MetricSheet';
+import { Skeleton } from '../ui/Skeleton';
 
 export function TokenStat() {
   const tokens = useHud((s) => s.tokens);
+  const loading = useHud((s) => s.lastActivityAt === null);
   const { show } = useMetricSheet();
 
   return (
     <LongPressable onLongPress={() => show('tokens')}>
       <div className="hud-card p-6">
         <p className="hud-fg-muted text-xs uppercase tracking-wider">Tokens</p>
-        <div className="mt-4 grid grid-cols-3 gap-4">
-          <Stat label="In" value={tokens.in} />
-          <Stat label="Out" value={tokens.out} />
-          <Stat label="Cached" value={tokens.cached} />
-        </div>
+        {loading ? (
+          <div className="mt-4 grid grid-cols-3 gap-4">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        ) : (
+          <div className="mt-4 grid grid-cols-3 gap-4">
+            <Stat label="In" value={tokens.in} />
+            <Stat label="Out" value={tokens.out} />
+            <Stat label="Cached" value={tokens.cached} />
+          </div>
+        )}
         <p className="hud-fg-muted mt-3 text-[10px]">Long-press for details</p>
       </div>
     </LongPressable>

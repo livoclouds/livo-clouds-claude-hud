@@ -18,6 +18,8 @@ import { useEventStream, type SseStatus } from '@/lib/sse-client';
 const HudStoreContext = createContext<HudStoreApi | null>(null);
 const SseStatusContext = createContext<SseStatus>('connecting');
 const HudHydrationContext = createContext<boolean>(false);
+// Stable reconnect callback — triggers an immediate SSE re-open (used by PullToRefresh).
+const HudReconnectContext = createContext<() => void>(() => {});
 
 // ─── HudStoreProvider ─────────────────────────────────────────────────────────
 // Outer layer: stable forever. Creates the Zustand store once and never
@@ -53,7 +55,7 @@ function HudConnectionProvider({ children }: { children: ReactNode }) {
   const [sseStatus, setSseStatus] = useState<SseStatus>('connecting');
   const onStatusChange = useCallback((s: SseStatus) => setSseStatus(s), []);
 
-  useEventStream(store, { onStatusChange });
+  const { reconnect } = useEventStream(store, { onStatusChange });
 
   // Mark hydrated on the client so reduced-motion / time-based UI can mount
   // after the first paint without producing a server/client mismatch.
@@ -63,9 +65,11 @@ function HudConnectionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <SseStatusContext.Provider value={sseStatus}>
-      <HudHydrationContext.Provider value={hydrated}>{children}</HudHydrationContext.Provider>
-    </SseStatusContext.Provider>
+    <HudReconnectContext.Provider value={reconnect}>
+      <SseStatusContext.Provider value={sseStatus}>
+        <HudHydrationContext.Provider value={hydrated}>{children}</HudHydrationContext.Provider>
+      </SseStatusContext.Provider>
+    </HudReconnectContext.Provider>
   );
 }
 
@@ -94,6 +98,10 @@ export function useHudHydrated(): boolean {
 
 export function useSseStatus(): SseStatus {
   return useContext(SseStatusContext);
+}
+
+export function useHudReconnect(): () => void {
+  return useContext(HudReconnectContext);
 }
 
 function useHudStoreApi(): HudStoreApi {
