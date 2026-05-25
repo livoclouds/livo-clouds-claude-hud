@@ -142,10 +142,12 @@ function appendRecent(
   recent: ReadonlyArray<HudEnvelope>,
   envelope: HudEnvelope,
 ): ReadonlyArray<HudEnvelope> {
-  const next = recent.length >= RECENT_EVENTS_CAP
-    ? [...recent.slice(recent.length - RECENT_EVENTS_CAP + 1), envelope]
-    : [...recent, envelope];
-  return next;
+  // Single allocation regardless of cap: copy then shift-and-push instead of
+  // slice-then-spread (which allocates twice when at capacity) (O10).
+  const events: HudEnvelope[] = [...recent];
+  if (events.length >= RECENT_EVENTS_CAP) events.shift();
+  events.push(envelope);
+  return events;
 }
 
 // Single source of truth for turning an envelope into the next state.
@@ -275,13 +277,14 @@ export function reduce(state: HudState, envelope: HudEnvelope): HudState {
           toolInput: event.toolInput ?? null,
           durationMs: event.durationMs ?? null,
         };
-        const calls = prior.toolCalls.length >= TOOL_CALLS_PER_AGENT_CAP
-          ? [...prior.toolCalls.slice(prior.toolCalls.length - TOOL_CALLS_PER_AGENT_CAP + 1), nextCall]
-          : [...prior.toolCalls, nextCall];
-        next.agents = {
-          ...next.agents,
-          [owner]: { ...prior, toolCalls: calls },
-        };
+        const toolCalls: HudAgentToolCall[] = [...prior.toolCalls];
+        if (toolCalls.length >= TOOL_CALLS_PER_AGENT_CAP) toolCalls.shift();
+        toolCalls.push(nextCall);
+        // O9: Object.assign + in-place key update instead of spread to make
+        // the single-copy intent explicit.
+        const agents: Record<string, HudAgent> = Object.assign({}, next.agents);
+        agents[owner] = { ...prior, toolCalls };
+        next.agents = agents;
       }
       return next;
     }
@@ -312,23 +315,23 @@ export function reduce(state: HudState, envelope: HudEnvelope): HudState {
 
     case 'agent.invoke': {
       const prior = state.agents[event.agentName];
-      next.agents = {
-        ...state.agents,
-        [event.agentName]: {
-          name: event.agentName,
-          description: event.agentDescription ?? prior?.description ?? null,
-          color: event.agentColor ?? prior?.color ?? null,
-          prompt: event.prompt ?? prior?.prompt ?? null,
-          status: 'working',
-          startedAt: event.ts,
-          endedAt: null,
-          durationMs: null,
-          invocations: (prior?.invocations ?? 0) + 1,
-          error: null,
-          // Reset on every new invocation so the sheet only shows the latest run.
-          toolCalls: [],
-        },
+      // O9: explicit Object.assign copy + in-place key update.
+      const agentsInvoke: Record<string, HudAgent> = Object.assign({}, state.agents);
+      agentsInvoke[event.agentName] = {
+        name: event.agentName,
+        description: event.agentDescription ?? prior?.description ?? null,
+        color: event.agentColor ?? prior?.color ?? null,
+        prompt: event.prompt ?? prior?.prompt ?? null,
+        status: 'working',
+        startedAt: event.ts,
+        endedAt: null,
+        durationMs: null,
+        invocations: (prior?.invocations ?? 0) + 1,
+        error: null,
+        // Reset on every new invocation so the sheet only shows the latest run.
+        toolCalls: [],
       };
+      next.agents = agentsInvoke;
       next.currentAgent = event.agentName;
       next.lastActivityAt = event.ts;
       return next;
@@ -337,22 +340,22 @@ export function reduce(state: HudState, envelope: HudEnvelope): HudState {
     case 'agent.complete': {
       const prior = state.agents[event.agentName];
       const startedAt = prior?.startedAt ?? event.ts;
-      next.agents = {
-        ...state.agents,
-        [event.agentName]: {
-          name: event.agentName,
-          description: prior?.description ?? null,
-          color: prior?.color ?? null,
-          prompt: prior?.prompt ?? null,
-          status: event.error ? 'errored' : 'completed',
-          startedAt,
-          endedAt: event.ts,
-          durationMs: event.durationMs ?? Math.max(0, event.ts - startedAt),
-          invocations: prior?.invocations ?? 1,
-          error: event.error ?? null,
-          toolCalls: prior?.toolCalls ?? [],
-        },
+      // O9: explicit Object.assign copy + in-place key update.
+      const agentsComplete: Record<string, HudAgent> = Object.assign({}, state.agents);
+      agentsComplete[event.agentName] = {
+        name: event.agentName,
+        description: prior?.description ?? null,
+        color: prior?.color ?? null,
+        prompt: prior?.prompt ?? null,
+        status: event.error ? 'errored' : 'completed',
+        startedAt,
+        endedAt: event.ts,
+        durationMs: event.durationMs ?? Math.max(0, event.ts - startedAt),
+        invocations: prior?.invocations ?? 1,
+        error: event.error ?? null,
+        toolCalls: prior?.toolCalls ?? [],
       };
+      next.agents = agentsComplete;
       // Only clear currentAgent if this completion is for the agent currently
       // in flight — a stray complete for a different agent shouldn't drop us
       // out of tracking mode for an unrelated subagent still running.

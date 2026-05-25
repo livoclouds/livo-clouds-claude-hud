@@ -95,6 +95,7 @@ export async function appendEvent(envelope: BusEnvelope): Promise<void> {
     } catch (err) {
       const code = (err as NodeJS.ErrnoException)?.code ?? 'unknown';
       console.error(`log: jsonl append failed (code=${code})`);
+      throw err; // propagate so callers can surface the failure (I3)
     }
   });
   await writeChain;

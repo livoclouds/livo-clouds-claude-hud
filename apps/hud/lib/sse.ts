@@ -50,13 +50,27 @@ export function buildSseResponse(req: Request, handlers: SseHandlers): Response 
   const encoder = new TextEncoder();
   let closed = false;
 
+  // Hoisted so cancel() can delegate to it (I9). Starts as a minimal
+  // implementation; reassigned inside start() once the controller is
+  // available to also close the readable stream.
+  let cleanup: () => void = () => {
+    if (closed) return;
+    closed = true;
+    try {
+      handlers.onClose?.();
+    } catch {
+      // ignore
+    }
+  };
+
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const bp = handlers.backpressure;
       let bpSince: number | null = null;
       let bytesAccum = 0; // fallback byte counter when desiredSize is null
 
-      const cleanup = () => {
+      // Override with the full implementation that also closes the controller.
+      cleanup = () => {
         if (closed) return;
         closed = true;
         try {
@@ -98,8 +112,10 @@ export function buildSseResponse(req: Request, handlers: SseHandlers): Response 
 
             if (desired === null) {
               bytesAccum += encoded.byteLength;
-            } else if (!isPressured) {
-              // Consumer is draining — reset the byte fallback counter.
+            } else {
+              // desiredSize is available — reset the fallback byte counter
+              // regardless of pressure state so it starts fresh if desiredSize
+              // later becomes null again (I8).
               bytesAccum = 0;
             }
 
@@ -131,13 +147,10 @@ export function buildSseResponse(req: Request, handlers: SseHandlers): Response 
       }
     },
     cancel() {
-      if (closed) return;
-      closed = true;
-      try {
-        handlers.onClose?.();
-      } catch {
-        // ignore
-      }
+      // Delegate to the shared cleanup so any future additions to it are
+      // automatically applied here too (I9). controller.close() throws during
+      // cancel but is caught inside cleanup().
+      cleanup();
     },
   });
 

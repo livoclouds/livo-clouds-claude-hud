@@ -44,6 +44,10 @@ export async function POST(req: Request): Promise<Response> {
     return jsonResponse(401, { error: 'unauthorized' });
   }
 
+  // Defense-in-depth: route handlers have no built-in body size cap from the
+  // framework (unlike server actions). The Content-Length check below provides
+  // a fast-path rejection; chunked requests without Content-Length are caught
+  // upstream by the reverse proxy or load-balancer limits (I10).
   const rawLen = req.headers.get('content-length');
   if (rawLen !== null) {
     const len = parseInt(rawLen, 10);
@@ -72,7 +76,13 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const envelope = bus.publish(result.data);
-  await appendEvent(envelope);
+  try {
+    await appendEvent(envelope);
+  } catch (err) {
+    // appendEvent propagates disk failures after logging them (I3).
+    console.error('events: log write failed', err instanceof Error ? err.message : err);
+    return jsonResponse(500, { error: 'log_write_failed' });
+  }
 
   return new Response(null, { status: 204 });
 }

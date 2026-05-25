@@ -9,7 +9,7 @@
 //
 // Opt out with HUD_DISABLE_POLLER=1 or HUD_DISABLE_TRANSCRIPT_POLLER=1.
 
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
@@ -40,6 +40,37 @@ const POLLERS: ReadonlyArray<PollerSpec> = [
       'check ~/.claude/livo-clouds-hud.env exists with HUD_INGEST_TOKEN and packages/contracts/src/pricing.json is present.',
   },
 ] as const;
+
+// Shared set of active child processes. Populated by startPoller() and
+// drained by the module-level signal handlers below. Registering each signal
+// exactly once avoids the double-raise loop that occurs when per-poller
+// handlers each re-raise the same signal (I1).
+const activeChildren = new Set<ChildProcess>();
+
+const moduleCleanup = (signal: NodeJS.Signals | 'exit') => {
+  for (const c of activeChildren) {
+    // exitCode === null means the process has not yet exited. !child.killed
+    // only reflects whether Node called .kill() — a naturally-exited child
+    // has killed === false but exitCode !== null, so calling kill() on it
+    // throws ESRCH (I11).
+    if (c.pid && c.exitCode === null) {
+      try {
+        c.kill('SIGTERM');
+      } catch {
+        // Race: child exited between the guard check and the kill call.
+      }
+    }
+  }
+  if (signal !== 'exit') {
+    // Re-raise the signal so Node's default handler can run after we've
+    // cleaned up our children.
+    process.kill(process.pid, signal);
+  }
+};
+
+process.once('SIGINT',  () => moduleCleanup('SIGINT'));
+process.once('SIGTERM', () => moduleCleanup('SIGTERM'));
+process.once('exit',    () => moduleCleanup('exit'));
 
 for (const spec of POLLERS) {
   if (process.env[spec.disableEnv] === '1') {
@@ -83,6 +114,8 @@ function startPoller(spec: PollerSpec) {
     detached: false,
   });
 
+  activeChildren.add(child);
+
   console.log(`[poller:${spec.key}] started pid=${child.pid} (${path.basename(pollerPath)})`);
 
   child.stdout?.on('data', (b: Buffer) => {
@@ -93,6 +126,7 @@ function startPoller(spec: PollerSpec) {
   });
 
   child.on('exit', (code, signal) => {
+    activeChildren.delete(child);
     g[flagKey] = false;
     const elapsed = Date.now() - startedAt;
     if (elapsed < 1500 && (code === 0 || code === null)) {
@@ -106,24 +140,4 @@ function startPoller(spec: PollerSpec) {
       console.warn(`[poller:${spec.key}] exited unexpectedly code=${code}`);
     }
   });
-
-  // Make sure the child dies when the parent dies. Node fires these on
-  // Ctrl-C (SIGINT) and on normal `next dev` shutdowns (SIGTERM).
-  const cleanup = (signal: NodeJS.Signals | 'exit') => {
-    if (child.pid && !child.killed) {
-      try {
-        child.kill('SIGTERM');
-      } catch {
-        // Already dead — nothing to do.
-      }
-    }
-    if (signal !== 'exit') {
-      // Re-raise the signal so Node's default handler can run after we've
-      // cleaned up our child.
-      process.kill(process.pid, signal);
-    }
-  };
-  process.once('SIGINT', () => cleanup('SIGINT'));
-  process.once('SIGTERM', () => cleanup('SIGTERM'));
-  process.once('exit', () => cleanup('exit'));
 }

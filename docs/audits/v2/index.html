@@ -159,6 +159,13 @@
         font-size: 11px; font-family: 'SF Mono', Menlo, monospace;
         padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--fg-mute);
       }
+      .finding-chip.resolved {
+        background: color-mix(in srgb, var(--status-completed) 12%, transparent);
+        border-color: color-mix(in srgb, var(--status-completed) 40%, transparent);
+        color: var(--status-completed);
+        text-decoration: line-through;
+        opacity: 0.75;
+      }
       .phase-actions { display: flex; gap: 14px; margin-top: 14px; font-size: 13px; }
       .phase-actions a { color: var(--accent); }
       .links-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
@@ -240,7 +247,7 @@
         <h2>Phases</h2>
         <ol class="phase-list">
 
-          <li class="phase" data-phase-progress="0" data-phase-status="pending" data-finding-count="16">
+          <li class="phase" data-phase-progress="100" data-phase-status="completed" data-finding-count="16">
             <div class="phase-head">
               <div style="flex: 1; min-width: 240px">
                 <div class="phase-num">Phase 1</div>
@@ -248,7 +255,7 @@
               </div>
               <div class="phase-meta">
                 <span class="badge medium">Medium</span>
-                <span class="status" data-status="pending">Pending</span>
+                <span class="status" data-status="completed">Completed</span>
               </div>
             </div>
             <p class="phase-detail">
@@ -260,30 +267,30 @@
               agents-map allocation (M1), appendRecent allocation (M2).
             </p>
             <div class="findings-list">
-              <span class="finding-chip">I1</span>
-              <span class="finding-chip">I2</span>
-              <span class="finding-chip">I3</span>
-              <span class="finding-chip">I4</span>
-              <span class="finding-chip">I5</span>
-              <span class="finding-chip">I6</span>
-              <span class="finding-chip">I7</span>
-              <span class="finding-chip">I8</span>
-              <span class="finding-chip">I9</span>
-              <span class="finding-chip">I10</span>
-              <span class="finding-chip">I11</span>
-              <span class="finding-chip">I12</span>
-              <span class="finding-chip">O6 (v1 H7)</span>
-              <span class="finding-chip">O8 (v1 L1)</span>
-              <span class="finding-chip">O9 (v1 M1)</span>
-              <span class="finding-chip">O10 (v1 M2)</span>
+              <span class="finding-chip resolved">I1</span>
+              <span class="finding-chip resolved">I2</span>
+              <span class="finding-chip resolved">I3</span>
+              <span class="finding-chip resolved">I4</span>
+              <span class="finding-chip resolved">I5</span>
+              <span class="finding-chip resolved">I6</span>
+              <span class="finding-chip resolved">I7</span>
+              <span class="finding-chip resolved">I8</span>
+              <span class="finding-chip resolved">I9</span>
+              <span class="finding-chip resolved">I10</span>
+              <span class="finding-chip resolved">I11</span>
+              <span class="finding-chip resolved">I12</span>
+              <span class="finding-chip resolved">O6 (v1 H7)</span>
+              <span class="finding-chip resolved">O8 (v1 L1)</span>
+              <span class="finding-chip resolved">O9 (v1 M1)</span>
+              <span class="finding-chip resolved">O10 (v1 M2)</span>
             </div>
             <div class="phase-progress">
-              <div class="bar-track"><div class="bar-fill" style="width: 0%"></div></div>
-              <div class="phase-pct">0%</div>
+              <div class="bar-track"><div class="bar-fill" style="width: 100%"></div></div>
+              <div class="phase-pct">100%</div>
             </div>
             <div class="phase-actions">
               <a href="./phases/phase-1-code-correctness.md">Phase notes →</a>
-              <span style="color: var(--fg-mute)">No PR yet</span>
+              <span style="color: var(--fg-mute)">Merged 2026-05-24</span>
             </div>
           </li>
 

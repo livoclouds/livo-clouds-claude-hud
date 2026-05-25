@@ -7,10 +7,11 @@
 # is never delayed by the HUD.
 #
 # Configuration is sourced from ~/.claude/livo-clouds-hud.env:
-#   HUD_INGEST_TOKEN  (required) shared bearer token
-#   HUD_URL           (optional) defaults to http://127.0.0.1:3000
-#   HUD_HOOK_LOG      (optional) defaults to ~/.claude/hud-hook.log
-#   HUD_TIMEOUT_MS    (optional) defaults to 250
+#   HUD_INGEST_TOKEN       (required) shared bearer token
+#   HUD_URL                (optional) defaults to http://127.0.0.1:3000
+#   HUD_HOOK_LOG           (optional) defaults to ~/.claude/hud-hook.log
+#   HUD_TIMEOUT_MS         (optional) defaults to 250
+#   HUD_AGENT_CACHE_TTL_MIN (optional) pending-agent cache TTL in minutes (default 60)
 #
 # The bearer token is never written to the log or to stderr.
 
@@ -77,6 +78,7 @@ fi
 : "${HUD_INGEST_TOKEN:=}"
 : "${HUD_URL:=http://127.0.0.1:3000}"
 : "${HUD_TIMEOUT_MS:=250}"
+: "${HUD_AGENT_CACHE_TTL_MIN:=60}"
 
 [ -n "$HUD_INGEST_TOKEN" ] || bail unknown missing_token
 
@@ -135,9 +137,11 @@ elif [ -n "$HOOK_SESSION_ID" ]; then
   PENDING_AGENT_FILE="${PENDING_AGENT_DIR%/}/hud-pending-agent-${HOOK_SESSION_ID}.json"
 fi
 
-# Remove stale pending-agent stash files older than 60 minutes (H8).
+# Remove stale pending-agent stash files older than HUD_AGENT_CACHE_TTL_MIN
+# minutes (default 60). Configurable so long-idle sessions don't lose agent
+# name correlation when the PreToolUse cache is swept before PostToolUse (I6).
 find "${PENDING_AGENT_DIR%/}" -maxdepth 1 \
-  -name 'hud-pending-agent-*' -mmin +60 -delete 2>/dev/null || true
+  -name 'hud-pending-agent-*' -mmin +"${HUD_AGENT_CACHE_TTL_MIN}" -delete 2>/dev/null || true
 
 AGENT_NAME=""
 CC_VERSION=""
@@ -173,6 +177,12 @@ case "$HOOK_NAME" in
       # Stash the agent context so PostToolUse can recover the name even if
       # Claude Code drops tool_input.subagent_type from the post payload.
       if [ -n "$PENDING_AGENT_FILE" ]; then
+        # Warn on collision: concurrent PreToolUse events for the same key
+        # would silently overwrite the first write (I12).
+        if [ -f "$PENDING_AGENT_FILE" ]; then
+          printf '[claude-hook] warn: agent cache collision on %s — overwriting\n' \
+            "$(basename "$PENDING_AGENT_FILE")" >&2
+        fi
         jq -n \
           --arg subagent_type "$SUBAGENT_TYPE" \
           --arg description "$AGENT_DESC" \

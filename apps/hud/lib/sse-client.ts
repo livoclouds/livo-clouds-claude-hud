@@ -109,7 +109,10 @@ export function useEventStream(store: HudStoreApi, opts: UseEventStreamOptions =
     const scheduleReconnect = () => {
       if (cancelled) return;
       notify('reconnecting');
-      const delay = Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** backoffAttempt);
+      // ±30% jitter spreads reconnects across concurrent clients so they don't
+      // all hit the server at the same moment after a restart (O8).
+      const base = Math.min(BACKOFF_CAP_MS, BACKOFF_BASE_MS * 2 ** backoffAttempt);
+      const delay = base * (0.85 + Math.random() * 0.30);
       backoffAttempt += 1;
       setConnectionState(
         backoffAttempt >= DISCONNECTED_AFTER_ATTEMPTS ? 'disconnected' : 'reconnecting',
