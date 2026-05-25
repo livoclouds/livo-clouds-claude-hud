@@ -13,8 +13,8 @@
   --color-hud-bg: #0a0a0a;
   --color-hud-bg-elev: #14130f;
   --color-hud-fg: #f4f4f4;
-  --color-hud-fg-soft: rgba(244, 244, 244, 0.7);
-  --color-hud-fg-muted: rgba(244, 244, 244, 0.45);
+  --color-hud-fg-soft: rgba(244, 244, 244, 0.82);
+  --color-hud-fg-muted: rgba(244, 244, 244, 0.62);
   --color-hud-card-bg: rgba(255, 255, 255, 0.05);
   --color-hud-card-border: rgba(255, 255, 255, 0.1);
   --color-hud-accent: #cc785c;
@@ -34,8 +34,8 @@
   --color-hud-bg: #0a0a0a;
   --color-hud-bg-elev: #14130f;
   --color-hud-fg: #f4f4f4;
-  --color-hud-fg-soft: rgba(244, 244, 244, 0.7);
-  --color-hud-fg-muted: rgba(244, 244, 244, 0.45);
+  --color-hud-fg-soft: rgba(244, 244, 244, 0.82);
+  --color-hud-fg-muted: rgba(244, 244, 244, 0.62);
   --color-hud-card-bg: rgba(255, 255, 255, 0.05);
   --color-hud-card-border: rgba(255, 255, 255, 0.1);
   --color-hud-accent: #cc785c;
@@ -54,8 +54,8 @@
   --color-hud-bg: #f7f6f2;
   --color-hud-bg-elev: #ffffff;
   --color-hud-fg: #1a1a1a;
-  --color-hud-fg-soft: rgba(26, 26, 26, 0.72);
-  --color-hud-fg-muted: rgba(26, 26, 26, 0.5);
+  --color-hud-fg-soft: rgba(26, 26, 26, 0.82);
+  --color-hud-fg-muted: rgba(26, 26, 26, 0.65);
   --color-hud-card-bg: rgba(255, 255, 255, 0.62);
   --color-hud-card-border: rgba(20, 18, 14, 0.12);
   --color-hud-accent: #cc785c;
@@ -172,4 +172,22 @@ body {
 }
 .hud-scrollbar::-webkit-scrollbar-thumb:hover {
   background: var(--color-hud-fg-muted);
+}
+
+/* Skeleton shimmer — gradient sweep used by the <Skeleton> component. The
+   animation is disabled globally by the prefers-reduced-motion rule above. */
+@keyframes shimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--color-hud-card-border) 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    var(--color-hud-card-border) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
 }

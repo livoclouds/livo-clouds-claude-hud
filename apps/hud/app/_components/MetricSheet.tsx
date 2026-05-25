@@ -149,7 +149,7 @@ function MetricSheet() {
               className="-mt-2 mb-2 flex h-6 cursor-grab items-center justify-center"
               aria-hidden
             >
-              <span className="block h-1.5 w-12 rounded-full bg-[var(--color-hud-card-border)]" />
+              <span className="block h-[5px] w-16 rounded-full bg-[var(--color-hud-card-border)] opacity-60" />
             </div>
             <div className="flex items-start justify-between gap-4">
               <h2 id={titleId} className="font-mono text-base hud-fg">
