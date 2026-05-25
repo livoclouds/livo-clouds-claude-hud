@@ -1,4 +1,4 @@
-import { mkdir, open, rename, type FileHandle } from 'node:fs/promises';
+import { mkdir, open, readdir, rename, stat, unlink, type FileHandle } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { BusEnvelope } from './bus';
 
@@ -15,10 +15,40 @@ function pathForDay(dayKey: string): string {
 const MAX_LOG_BYTES =
   parseInt(process.env.HUD_LOG_MAX_SIZE_MB ?? '100', 10) * 1024 * 1024;
 
+const RETENTION_DAYS = (() => {
+  const raw = process.env.HUD_LOG_RETENTION_DAYS;
+  if (!raw) return 7;
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n >= 0 ? n : 7;
+})();
+
 let mkdirPromise: Promise<void> | null = null;
 let currentHandle: FileHandle | null = null;
 let currentDayKey: string | null = null;
 let writeChain: Promise<void> = Promise.resolve();
+
+async function pruneOldRotations(): Promise<void> {
+  const cutoffMs = Date.now() - RETENTION_DAYS * 86_400_000;
+  let entries: string[];
+  try {
+    entries = await readdir(DATA_DIR);
+  } catch {
+    return; // data dir may not exist yet
+  }
+  for (const name of entries) {
+    // Only delete rotated generation files (.N suffix), never the active log.
+    if (!/^events-\d{4}-\d{2}-\d{2}\.jsonl\.\d+$/.test(name)) continue;
+    const fullPath = join(DATA_DIR, name);
+    try {
+      const { mtimeMs } = await stat(fullPath);
+      if (mtimeMs < cutoffMs) {
+        await unlink(fullPath);
+      }
+    } catch {
+      // best-effort: file may have been removed concurrently
+    }
+  }
+}
 
 async function rotateDailyLog(dayKey: string): Promise<void> {
   const base = pathForDay(dayKey);
@@ -44,6 +74,13 @@ async function rotateDailyLog(dayKey: string): Promise<void> {
     await rename(base, `${base}.1`);
   } catch {
     // may not exist yet
+  }
+
+  // Delete rotated files that have aged past the retention window.
+  try {
+    await pruneOldRotations();
+  } catch {
+    // best-effort: do not surface retention failures to callers
   }
 }
 
@@ -99,4 +136,37 @@ export async function appendEvent(envelope: BusEnvelope): Promise<void> {
     }
   });
   await writeChain;
+}
+
+/**
+ * Waits for all in-flight JSONL writes to complete, up to `timeoutMs`.
+ * Used during graceful shutdown to avoid partial log lines on disk.
+ */
+export function drainLogWrites(timeoutMs: number): Promise<void> {
+  const timeout = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
+  return Promise.race([writeChain, timeout]);
+}
+
+/**
+ * Returns the combined size of all JSONL log files in the data directory,
+ * in megabytes. Returns 0 if the directory does not exist or is empty.
+ */
+export async function diskUsageMb(): Promise<number> {
+  let entries: string[];
+  try {
+    entries = await readdir(DATA_DIR);
+  } catch {
+    return 0;
+  }
+  let totalBytes = 0;
+  for (const name of entries) {
+    if (!name.startsWith('events-') || !name.includes('.jsonl')) continue;
+    try {
+      const { size } = await stat(join(DATA_DIR, name));
+      totalBytes += size;
+    } catch {
+      // file removed between readdir and stat
+    }
+  }
+  return totalBytes / (1024 * 1024);
 }

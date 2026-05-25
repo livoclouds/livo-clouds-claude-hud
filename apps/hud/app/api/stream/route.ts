@@ -1,4 +1,5 @@
 import { bus, type BusEnvelope } from '@/lib/bus';
+import { lifecycleEmitter } from '@/lib/lifecycle';
 import {
   HEARTBEAT_INTERVAL_MS,
   buildSseResponse,
@@ -40,6 +41,7 @@ export function GET(req: Request): Response {
   const lastEventId = req.headers.get('last-event-id');
   let heartbeat: ReturnType<typeof setInterval> | null = null;
   let unsubscribe: (() => void) | null = null;
+  let onShutdown: (() => void) | null = null;
 
   return buildSseResponse(req, {
     backpressure: BP_CONFIG,
@@ -69,18 +71,28 @@ export function GET(req: Request): Response {
         heartbeat = setInterval(() => {
           write(formatComment('ping'));
         }, HEARTBEAT_INTERVAL_MS);
+
+        // Notify this client before the server closes the connection.
+        onShutdown = () => {
+          write(formatFrame({ event: 'shutdown', data: { reason: 'server-restart' } }));
+          close();
+        };
+        lifecycleEmitter.once('shutdown', onShutdown);
       } catch (err) {
         // Guard against unexpected errors after subscribe() succeeds but before
         // we return — ensure the subscriber is not leaked (I2).
         if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+        if (onShutdown) { lifecycleEmitter.removeListener('shutdown', onShutdown); onShutdown = null; }
         throw err;
       }
     },
     onClose: () => {
       if (heartbeat) clearInterval(heartbeat);
       if (unsubscribe) unsubscribe();
+      if (onShutdown) lifecycleEmitter.removeListener('shutdown', onShutdown);
       heartbeat = null;
       unsubscribe = null;
+      onShutdown = null;
     },
   });
 }

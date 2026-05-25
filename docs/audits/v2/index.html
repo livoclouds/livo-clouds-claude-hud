@@ -409,7 +409,7 @@
             </div>
           </li>
 
-          <li class="phase" data-phase-progress="0" data-phase-status="pending" data-finding-count="5">
+          <li class="phase" data-phase-progress="100" data-phase-status="completed" data-finding-count="5">
             <div class="phase-head">
               <div style="flex: 1; min-width: 240px">
                 <div class="phase-num">Phase 4</div>
@@ -417,7 +417,7 @@
               </div>
               <div class="phase-meta">
                 <span class="badge high">High</span>
-                <span class="status" data-status="pending">Pending</span>
+                <span class="status" data-status="completed">Completed</span>
               </div>
             </div>
             <p class="phase-detail">
@@ -425,11 +425,13 @@
               disk usage), <code>GET /api/internal/stats</code> (token-gated — full bus
               diagnostics), <code>GET /api/readiness</code> (503 / 200 for container
               orchestrators). Graceful SIGTERM handler: sets a
-              <code>draining</code> flag, emits a <code>shutdown</code> SSE event to
-              all clients, drains the JSONL write queue, then exits — preventing
-              thundering-herd reconnects. Time-based log retention via
-              <code>HUD_LOG_RETENTION_DAYS</code>. Dedicated poller log files with
-              rotation.
+              <code>draining</code> flag, emits a named <code>shutdown</code> SSE event to
+              all clients via <code>lifecycleEmitter</code>, drains the JSONL write queue
+              (up to 5 s), then exits — preventing thundering-herd reconnects. Time-based
+              log retention via <code>HUD_LOG_RETENTION_DAYS</code> (default 7 days).
+              Dedicated poller log files (<code>logs/poller-*.log</code>) with 10 MB /
+              3-generation rotation. New <code>lib/lifecycle.ts</code> singleton
+              coordinates draining, readiness, and shutdown signalling across routes.
             </p>
             <div class="findings-list">
               <span class="finding-chip">O1</span>
@@ -439,12 +441,12 @@
               <span class="finding-chip">O7</span>
             </div>
             <div class="phase-progress">
-              <div class="bar-track"><div class="bar-fill" style="width: 0%"></div></div>
-              <div class="phase-pct">0%</div>
+              <div class="bar-track"><div class="bar-fill" style="width: 100%"></div></div>
+              <div class="phase-pct">100%</div>
             </div>
             <div class="phase-actions">
               <a href="./phases/phase-4-observability.md">Phase notes →</a>
-              <span style="color: var(--fg-mute)">No PR yet</span>
+              <span style="color: var(--fg-mute)">2026-05-24</span>
             </div>
           </li>
 
