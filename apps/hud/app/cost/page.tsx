@@ -16,7 +16,7 @@ export default async function CostPage() {
   const hasAny = totalCost > 0 || totalTokensOut > 0 || totalSessions > 0;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10">
+    <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10 kiosk:max-w-[1600px]">
       <header className="flex items-baseline justify-between">
         <h1 className="font-mono text-lg hud-fg">
           <span aria-hidden className="mr-2 hud-accent">

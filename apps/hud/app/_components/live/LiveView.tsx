@@ -17,7 +17,7 @@ export function LiveView() {
     <MetricSheetProvider>
       <AgentDetailSheetProvider>
         <SessionDetailSheetProvider>
-          <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10">
+          <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10 kiosk:max-w-[1600px]">
           <ErrorPill />
 
           {/* Mascot sticks below the StatusBar (h-14 = 56 px → top-14) and
@@ -31,15 +31,15 @@ export function LiveView() {
             <StickyMascot />
           </section>
 
-          <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            <div className="md:col-span-2">
+          <section className="grid grid-cols-1 gap-6 md:grid-cols-3 lg:grid-cols-4">
+            <div className="md:col-span-2 lg:col-span-3">
               <SessionCard />
             </div>
             <ContextRing />
           </section>
 
-          <section className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            <div className="md:col-span-2">
+          <section className="grid grid-cols-1 gap-6 md:grid-cols-3 lg:grid-cols-4">
+            <div className="md:col-span-2 lg:col-span-3">
               <TokenStat />
             </div>
             <CostStat />

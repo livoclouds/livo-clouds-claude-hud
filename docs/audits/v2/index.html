@@ -294,7 +294,7 @@
             </div>
           </li>
 
-          <li class="phase" data-phase-progress="0" data-phase-status="pending" data-finding-count="6">
+          <li class="phase" data-phase-progress="100" data-phase-status="completed" data-finding-count="7">
             <div class="phase-head">
               <div style="flex: 1; min-width: 240px">
                 <div class="phase-num">Phase 2</div>
@@ -302,7 +302,7 @@
               </div>
               <div class="phase-meta">
                 <span class="badge high">High</span>
-                <span class="status" data-status="pending">Pending</span>
+                <span class="status" data-status="completed">Completed</span>
               </div>
             </div>
             <p class="phase-detail">
@@ -313,6 +313,23 @@
               side-by-side panels; kiosk (≥ 1440 px) filling the full viewport for
               Raspberry Pi HDMI displays. All interactive elements raised to ≥ 44 × 44 pt.
               <code>active:</code> press states added to every touch affordance.
+              <br /><br />
+              <strong>Resolved 2026-05-24.</strong>
+              NavBar is now responsive: bottom pill on mobile/tablet (<code>lg:hidden</code>),
+              left sidebar (80 px) on desktop (<code>hidden lg:flex</code>) with
+              <code>lg:pl-20</code> on the content wrapper.
+              Live page grid expanded to <code>lg:grid-cols-4</code> (SessionCard/TokenStat span 3,
+              ContextRing/CostStat span 1). AgentsDashboard card grid gains <code>xl:grid-cols-4</code>.
+              A <code>kiosk</code> breakpoint registered at 1440 px (<code>@theme { --breakpoint-kiosk }</code>);
+              all page containers gain <code>kiosk:max-w-[1600px]</code>.
+              Sessions page renders <code>&lt;SessionsCardList&gt;</code> for
+              <code>block md:hidden</code> and the sortable table for <code>hidden md:block</code>.
+              All pin buttons expanded to <code>min-h-[44px] min-w-[44px]</code>.
+              CollapsibleHeader gets <code>min-h-[44px]</code>.
+              Filter chips raised from <code>h-9</code> (36 px) to <code>h-11</code> (44 px)
+              with <code>active:scale-[0.97] active:opacity-80</code>.
+              AgentCard and SessionCardRow gain <code>active:brightness-90</code>.
+              NavBar links gain <code>active:opacity-70</code>.
             </p>
             <div class="findings-list">
               <span class="finding-chip">U1</span>
@@ -324,12 +341,12 @@
               <span class="finding-chip">U13</span>
             </div>
             <div class="phase-progress">
-              <div class="bar-track"><div class="bar-fill" style="width: 0%"></div></div>
-              <div class="phase-pct">0%</div>
+              <div class="bar-track"><div class="bar-fill" style="width: 100%"></div></div>
+              <div class="phase-pct">100%</div>
             </div>
             <div class="phase-actions">
               <a href="./phases/phase-2-device-adaptive-ux.md">Phase notes →</a>
-              <span style="color: var(--fg-mute)">No PR yet</span>
+              <span style="color: var(--fg-mute)">branch: worktree-phase-2-device-adaptive-ux</span>
             </div>
           </li>
 

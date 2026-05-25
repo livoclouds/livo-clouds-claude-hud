@@ -31,11 +31,8 @@ const STATUS_CHIPS: ReadonlyArray<{ bucket: Bucket; label: string; dot: string }
 ];
 
 function chipClass(active: boolean): string {
-  // 36 px chip height per CLAUDE.md §10 — primary actions hit 44 pt via
-  // their hit slop; secondary group chips at 36 pt are within the
-  // acceptable bound for clustered filter controls.
   const base =
-    'inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] uppercase tracking-wider transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]';
+    'inline-flex h-11 items-center gap-1.5 rounded-full px-3 text-[11px] uppercase tracking-wider transition-colors active:scale-[0.97] active:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]';
   return active
     ? `${base} bg-[var(--color-hud-accent)]/15 text-[color:var(--color-hud-fg)]`
     : `${base} text-[color:var(--color-hud-fg-muted)] hover:text-[color:var(--color-hud-fg)]`;
@@ -140,7 +137,7 @@ export function SessionsFilterBar({
                   if (!filters.kinds.has(v)) onToggleKind(v);
                 }
               }}
-              className="hud-fg h-9 rounded-full border border-[var(--color-hud-card-border)] bg-[var(--color-hud-card-bg)] px-3 text-[11px] uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[var(--color-hud-accent)]"
+              className="hud-fg h-11 rounded-full border border-[var(--color-hud-card-border)] bg-[var(--color-hud-card-bg)] px-3 text-[11px] uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-[var(--color-hud-accent)]"
               title="Filter by kind"
             >
               <option value="__all__">All kinds</option>
@@ -181,7 +178,7 @@ export function SessionsFilterBar({
           <button
             type="button"
             onClick={onClear}
-            className="hud-fg-muted ml-auto inline-flex h-9 items-center gap-1 rounded-full px-3 text-[11px] uppercase tracking-wider transition-colors hover:text-[color:var(--color-hud-fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
+            className="hud-fg-muted ml-auto inline-flex h-11 items-center gap-1 rounded-full px-3 text-[11px] uppercase tracking-wider transition-colors active:scale-[0.97] active:opacity-80 hover:text-[color:var(--color-hud-fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
             title="Clear all filters"
           >
             ✕ Clear

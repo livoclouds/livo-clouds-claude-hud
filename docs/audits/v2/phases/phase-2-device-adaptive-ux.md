@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | **Severity** | High |
-| **Status** | ⏳ Pending |
-| **PR** | — |
+| **Status** | ✅ Completed — 2026-05-24 |
+| **PR** | branch `worktree-phase-2-device-adaptive-ux` |
 | **Estimated effort** | ~10 hours |
 | **Risk of regression** | High — changes the NavBar rendering path and layout grid; must be verified on all three device classes |
 
@@ -12,18 +12,19 @@
 
 ## Scope
 
-Six UI/UX findings addressing the layout experience on desktop, tablet,
-and mobile. The goal is three distinct, native-feeling experiences on the
+Seven UI/UX findings addressing the layout experience on desktop, tablet,
+mobile, and kiosk. The goal is four distinct, native-feeling experiences on the
 same codebase.
 
-| Finding | Summary |
-|---|---|
-| [U1](../findings/ux-responsive.md#u1--touch-targets-below-44--44-pt-minimum) | All interactive elements ≥ 44 × 44 pt |
-| [U2](../findings/ux-responsive.md#u2--sessions-table-has-no-responsive-variant-for-mobiletablet-portrait) | Sessions card view below `md:` breakpoint |
-| [U3](../findings/ux-responsive.md#u3--no-xl-breakpoint-variants-kiosk-displays-left-with-dead-space) | `xl:` breakpoint + kiosk tier at ≥ 1440 px |
-| [U4](../findings/ux-responsive.md#u4--hover-only-affordances-no-active-states-for-touch) | `active:` press states on all interactive elements |
-| [U7](../findings/ux-responsive.md#u7--bottom-navigation-is-wrong-on-desktop-1024-px) | Responsive NavBar: bottom on mobile/tablet, sidebar on desktop |
-| [U13](../findings/ux-responsive.md#u13--sessionsfilterbar-chips-below-touch-target-threshold) | Filter chips ≥ 44 px height + `active:` feedback |
+| Finding | Summary | Status |
+|---|---|---|
+| [U1](../findings/ux-responsive.md#u1--touch-targets-below-44--44-pt-minimum) | All interactive elements ≥ 44 × 44 pt | ✅ |
+| [U2](../findings/ux-responsive.md#u2--sessions-table-has-no-responsive-variant-for-mobiletablet-portrait) | Sessions card view below `md:` breakpoint | ✅ |
+| [U3](../findings/ux-responsive.md#u3--no-xl-breakpoint-variants-kiosk-displays-left-with-dead-space) | `xl:` breakpoint + kiosk tier at ≥ 1440 px | ✅ |
+| [U4](../findings/ux-responsive.md#u4--hover-only-affordances-no-active-states-for-touch) | `active:` press states on all interactive elements | ✅ |
+| [U7](../findings/ux-responsive.md#u7--bottom-navigation-is-wrong-on-desktop-1024-px) | Responsive NavBar: bottom on mobile/tablet, sidebar on desktop | ✅ |
+| [U12](../findings/ux-responsive.md#u12--no-kioskwidescreen-layout-for-raspberry-pi-hdmi-displays) | Kiosk max-width containers at 1440 px+ | ✅ |
+| [U13](../findings/ux-responsive.md#u13--sessionsfilterbar-chips-below-touch-target-threshold) | Filter chips ≥ 44 px height + `active:` feedback | ✅ |
 
 ---
 
@@ -97,7 +98,39 @@ Additional checks:
 ## Status updates
 
 - **2026-05-24** — Phase scoped, awaiting implementation.
+- **2026-05-24** — Phase completed. All 7 findings resolved. Build passes (no TS errors), 107 tests green.
+
+## Implementation notes
+
+### Files modified
+
+| File | Change |
+|---|---|
+| `apps/hud/app/globals.css` | Added `--breakpoint-kiosk: 1440px` to `@theme` block |
+| `apps/hud/app/_components/NavBar.tsx` | Dual render: bottom pill with `lg:hidden` + left sidebar with `hidden lg:flex flex-col`; `active:opacity-70` on all nav links |
+| `apps/hud/app/layout.tsx` | Content wrapper: `pb-28 lg:pb-0 lg:pl-20` (sidebar offset) |
+| `apps/hud/app/_components/live/LiveView.tsx` | Grid sections: `md:grid-cols-3 lg:grid-cols-4`; col-spans updated; `kiosk:max-w-[1600px]` on `<main>` |
+| `apps/hud/app/_components/live/AgentsDashboard.tsx` | `PinButton`: `min-h-[44px] min-w-[44px]`; `AgentCard`: `active:brightness-90`; card grid: `xl:grid-cols-4` |
+| `apps/hud/app/_components/live/SessionsDashboard.tsx` | `PinButton`: `min-h-[44px] min-w-[44px]`; `CollapsibleHeader`: `min-h-[44px] active:opacity-70`; `SessionCardRow`: `active:brightness-90`; clear button: `h-11` |
+| `apps/hud/app/_components/live/SessionsFilterBar.tsx` | `chipClass`: `h-9` → `h-11`, `active:scale-[0.97] active:opacity-80`; kind select and clear button: `h-9` → `h-11` |
+| `apps/hud/app/sessions/page.tsx` | Conditional `<SessionsCardList>` (`block md:hidden`) + table (`hidden md:block`); `kiosk:max-w-[1600px]` |
+| `apps/hud/app/cost/page.tsx` | `kiosk:max-w-[1600px]` on `<main>` |
+| `apps/hud/app/_components/shell/StatusBar.tsx` | `kiosk:max-w-[1600px]` on inner wrapper div |
+| `apps/hud/app/_components/sessions/SessionsCardList.tsx` | **New** — card-per-row layout for mobile; receives sessions + now as props from RSC |
+
+### Active-state pattern used
+
+```
+active:scale-[0.97] active:opacity-80 transition-transform duration-75   ← chip buttons
+active:brightness-90                                                        ← card surfaces (no layout shift)
+active:opacity-70                                                           ← nav links, collapse headers
+active:opacity-60                                                           ← pin icon buttons
+```
+
+### Touch target pattern
+
+Pin buttons and CollapsibleHeader: visual icon stays small, touch area expanded via `min-h-[44px] min-w-[44px] flex items-center justify-center`.
 
 ## What was deferred
 
-_(To be filled in after implementation.)_
+U5, U6, U8, U9, U10, U11 — Visual polish items deferred to Phase 3 per original plan. No scope creep introduced.

@@ -84,7 +84,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <ConnectionBanner />
             <StatusBar />
             <Gestures>
-              <div className="pb-28">{children}</div>
+              <div className="pb-28 lg:pb-0 lg:pl-20">{children}</div>
             </Gestures>
             <NavBar />
           </HudProvider>

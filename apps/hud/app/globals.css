@@ -8,6 +8,8 @@
    --------------------------------------------------------------------------- */
 
 @theme {
+  --breakpoint-kiosk: 1440px;
+
   --color-hud-bg: #0a0a0a;
   --color-hud-bg-elev: #14130f;
   --color-hud-fg: #f4f4f4;
