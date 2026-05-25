@@ -42,8 +42,14 @@ function attach(url: string, store: HudStoreApi): Connection {
     store.getState().actions.markReplayTruncated();
   };
 
+  const onBpDisconnect = () => {
+    if (disposed) return;
+    console.info('sse-client: server closed connection for backpressure; will reconnect with Last-Event-ID');
+  };
+
   source.addEventListener('message', onMessage);
   source.addEventListener('stream-replay-truncated', onTruncated);
+  source.addEventListener('bp-disconnect', onBpDisconnect);
 
   return {
     source,
@@ -51,6 +57,7 @@ function attach(url: string, store: HudStoreApi): Connection {
       disposed = true;
       source.removeEventListener('message', onMessage);
       source.removeEventListener('stream-replay-truncated', onTruncated);
+      source.removeEventListener('bp-disconnect', onBpDisconnect);
       try {
         source.close();
       } catch {

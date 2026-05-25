@@ -184,6 +184,14 @@ inside route handlers — extend the contract.
   the live HUD never reads from disk on the hot path. Log files are size-rotated: set
   `HUD_LOG_MAX_SIZE_MB` (default `100`) to control the per-file ceiling; up to three
   rotated generations are kept (`.1`, `.2`, `.3`).
+- **SSE backpressure**: slow consumers (stuck mobile clients, backgrounded tabs) are
+  disconnected before their write queue can grow unbounded. The grace window and byte
+  threshold are configurable via env vars:
+  - `HUD_SSE_BACKPRESSURE_BYTES` — bytes allowed in the SSE queue before the grace
+    timer starts (default `1048576`, i.e. 1 MB).
+  - `HUD_SSE_BACKPRESSURE_GRACE_S` — seconds of sustained backpressure before the
+    connection is closed (default `30`). The client reconnects automatically with
+    `Last-Event-ID` so no events are lost.
 - **No external database** in v1. Add SQLite (via `better-sqlite3`) only when history
   queries become expensive or we need cross-day analytics.
 
