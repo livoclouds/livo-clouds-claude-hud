@@ -78,7 +78,7 @@ function PinButton({
       }}
       aria-label={pinned ? `Unpin ${agentName}` : `Pin ${agentName}`}
       title={pinned ? 'Unpin' : 'Pin'}
-      className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[color:var(--color-hud-fg-muted)] hover:text-[color:var(--color-hud-fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
+      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-[color:var(--color-hud-fg-muted)] transition-opacity active:opacity-60 hover:text-[color:var(--color-hud-fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
       style={pinned ? { color: 'var(--color-hud-accent)' } : undefined}
     >
       <svg
@@ -141,7 +141,7 @@ function AgentCard({
       }}
       data-no-swipe="true"
       aria-label={`Open details for ${agent.name}`}
-      className="hud-card flex w-full items-start gap-3 p-4 text-left transition-colors hover:border-[color:color-mix(in_srgb,var(--color-hud-accent)_30%,var(--color-hud-card-border))] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
+      className="hud-card flex w-full items-start gap-3 p-4 text-left transition-colors active:brightness-90 hover:border-[color:color-mix(in_srgb,var(--color-hud-accent)_30%,var(--color-hud-card-border))] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
       style={{
         borderColor:
           agent.status === 'working'
@@ -256,7 +256,7 @@ export function AgentsDashboard() {
               <p className="hud-fg-muted text-[10px] uppercase tracking-wider">
                 Pinned
               </p>
-              <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 <AnimatePresence initial={false}>
                   {pinned.map((a) => (
                     <AgentCard
@@ -280,7 +280,7 @@ export function AgentsDashboard() {
                 </p>
               )}
               <div
-                className={`grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 ${pinned.length > 0 ? 'mt-2' : ''}`}
+                className={`grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 ${pinned.length > 0 ? 'mt-2' : ''}`}
               >
                 <AnimatePresence initial={false}>
                   {recent.map((a) => (

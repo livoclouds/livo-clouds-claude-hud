@@ -121,7 +121,7 @@ function PinButton({
       }}
       aria-label={pinned ? `Unpin ${sessionName}` : `Pin ${sessionName}`}
       title={pinned ? 'Unpin' : 'Pin'}
-      className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[color:var(--color-hud-fg-muted)] hover:text-[color:var(--color-hud-fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
+      className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full text-[color:var(--color-hud-fg-muted)] transition-opacity active:opacity-60 hover:text-[color:var(--color-hud-fg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
       style={pinned ? { color: 'var(--color-hud-accent)' } : undefined}
     >
       <svg
@@ -174,7 +174,7 @@ function SessionCardRow({
           show(session.sessionId);
         }
       }}
-      className="flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 transition-colors hover:bg-[color:color-mix(in_srgb,var(--color-hud-accent)_10%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
+      className="flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 transition-colors active:brightness-90 hover:bg-[color:color-mix(in_srgb,var(--color-hud-accent)_10%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
     >
       <SessionStatusIcon bucket={bucket} color={dot} />
       <div className="min-w-0 flex-1">
@@ -261,7 +261,7 @@ function CollapsibleHeader({
       onClick={onToggle}
       aria-expanded={!collapsed}
       aria-controls={`bucket-${section}`}
-      className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left text-[10px] uppercase tracking-wider transition-colors hover:bg-[color:color-mix(in_srgb,var(--color-hud-accent)_8%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
+      className="flex min-h-[44px] w-full items-center gap-2 rounded-md px-1 py-1 text-left text-[10px] uppercase tracking-wider transition-colors active:opacity-70 hover:bg-[color:color-mix(in_srgb,var(--color-hud-accent)_8%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
       style={{ color }}
     >
       <CollapseChevron collapsed={collapsed} />
@@ -479,7 +479,7 @@ export function SessionsDashboard() {
               <button
                 type="button"
                 onClick={clear}
-                className="hud-fg-muted mt-3 inline-flex h-9 items-center gap-1 rounded-full bg-[var(--color-hud-accent)]/10 px-3 text-[11px] uppercase tracking-wider transition-colors hover:bg-[var(--color-hud-accent)]/20 hover:text-[color:var(--color-hud-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
+                className="hud-fg-muted mt-3 inline-flex h-11 items-center gap-1 rounded-full bg-[var(--color-hud-accent)]/10 px-3 text-[11px] uppercase tracking-wider transition-colors active:scale-[0.97] active:opacity-80 hover:bg-[var(--color-hud-accent)]/20 hover:text-[color:var(--color-hud-accent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-hud-accent)]"
               >
                 ✕ Clear filters
               </button>

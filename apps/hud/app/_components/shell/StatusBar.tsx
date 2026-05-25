@@ -14,7 +14,7 @@ export function StatusBar() {
       data-no-swipe="true"
       className="sticky top-0 z-30 border-b border-[var(--color-hud-card-border)] bg-[color-mix(in_srgb,var(--color-hud-bg)_72%,transparent)] backdrop-blur-md"
     >
-      <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4 md:px-6">
+      <div className="mx-auto flex h-14 max-w-7xl items-center gap-3 px-4 md:px-6 kiosk:max-w-[1600px]">
         <span className="hud-fg inline-flex items-baseline gap-2 font-mono text-sm">
           <span aria-hidden className="hud-accent text-base leading-none">
             ✦

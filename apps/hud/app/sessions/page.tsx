@@ -4,6 +4,7 @@ import {
   sortSessions,
   type SessionSort,
 } from '@/lib/aggregations';
+import { SessionsCardList } from '@/app/_components/sessions/SessionsCardList';
 import {
   basename,
   formatCost,
@@ -41,7 +42,7 @@ export default async function SessionsPage({
   const now = Date.now();
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10">
+    <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 px-4 py-6 md:px-8 md:py-10 kiosk:max-w-[1600px]">
       <header className="flex items-baseline justify-between">
         <h1 className="font-mono text-lg hud-fg">
           <span aria-hidden className="mr-2 hud-accent">
@@ -72,8 +73,16 @@ export default async function SessionsPage({
           </p>
         </div>
       ) : (
-        <div className="hud-card overflow-hidden">
-          <table className="w-full border-collapse text-sm">
+        <>
+          {/* Card list — mobile (hidden on md+) */}
+          <div className="block md:hidden">
+            <SessionsCardList sessions={sessions} now={now} />
+          </div>
+
+          {/* Table — tablet and desktop (hidden on mobile) */}
+          <div className="hidden md:block">
+            <div className="hud-card overflow-hidden">
+              <table className="w-full border-collapse text-sm">
             <thead className="hud-fg-muted text-[10px] uppercase tracking-wider">
               <tr>
                 <th className="px-4 py-3 text-left font-normal">Session</th>
@@ -134,8 +143,10 @@ export default async function SessionsPage({
                 );
               })}
             </tbody>
-          </table>
-        </div>
+              </table>
+            </div>
+          </div>
+        </>
       )}
     </main>
   );
