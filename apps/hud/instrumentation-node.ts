@@ -12,6 +12,17 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import {
+  initPollers,
+  isDraining,
+  lifecycleEmitter,
+  markPollerDisabled,
+  markPollerFailed,
+  markPollerFirstData,
+  setDraining,
+} from '@/lib/lifecycle';
+import { drainLogWrites } from '@/lib/log';
+import { PollerLogger } from '@/lib/poller-log';
 
 type PollerSpec = {
   /** Identifier for log lines and the dedupe flag. */
@@ -46,6 +57,10 @@ const POLLERS: ReadonlyArray<PollerSpec> = [
 // exactly once avoids the double-raise loop that occurs when per-poller
 // handlers each re-raise the same signal (I1).
 const activeChildren = new Set<ChildProcess>();
+const activeLoggers = new Set<PollerLogger>();
+
+const PASSTHROUGH_LOGS = process.env.HUD_ENABLE_POLLER_LOG_PASSTHROUGH === '1';
+const LOGS_DIR = path.resolve(process.cwd(), 'logs');
 
 const moduleCleanup = (signal: NodeJS.Signals | 'exit') => {
   for (const c of activeChildren) {
@@ -61,6 +76,10 @@ const moduleCleanup = (signal: NodeJS.Signals | 'exit') => {
       }
     }
   }
+  // Close poller log writers best-effort (fire-and-forget during exit path).
+  for (const logger of activeLoggers) {
+    void logger.close();
+  }
   if (signal !== 'exit') {
     // Re-raise the signal so Node's default handler can run after we've
     // cleaned up our children.
@@ -68,13 +87,37 @@ const moduleCleanup = (signal: NodeJS.Signals | 'exit') => {
   }
 };
 
-process.once('SIGINT',  () => moduleCleanup('SIGINT'));
-process.once('SIGTERM', () => moduleCleanup('SIGTERM'));
-process.once('exit',    () => moduleCleanup('exit'));
+process.once('SIGINT', () => moduleCleanup('SIGINT'));
+process.once('exit',   () => moduleCleanup('exit'));
+
+// SIGTERM: graceful shutdown sequence (O2).
+//   1. Set draining flag — new ingest POSTs will return 503.
+//   2. Emit 'shutdown' on lifecycleEmitter — SSE routes write a named
+//      shutdown frame to each client and close their connections.
+//   3. Wait up to 5 s for in-flight JSONL writes to complete.
+//   4. Kill pollers and re-raise SIGTERM to let the default handler exit.
+process.once('SIGTERM', () => {
+  if (isDraining()) {
+    // Already draining (e.g., double-signal); skip the drain wait.
+    moduleCleanup('SIGTERM');
+    return;
+  }
+
+  setDraining();
+  lifecycleEmitter.emit('shutdown');
+
+  void drainLogWrites(5_000).then(() => {
+    moduleCleanup('SIGTERM');
+  });
+});
+
+// Pre-register all poller keys so /api/readiness knows what to wait for (O7).
+initPollers(POLLERS.map((s) => s.key));
 
 for (const spec of POLLERS) {
   if (process.env[spec.disableEnv] === '1') {
     console.log(`[poller:${spec.key}] auto-start disabled via ${spec.disableEnv}=1`);
+    markPollerDisabled(spec.key);
     continue;
   }
   startPoller(spec);
@@ -102,6 +145,7 @@ function startPoller(spec: PollerSpec) {
       `[poller:${spec.key}] could not locate hooks/${spec.scriptName}; the affected panel will stay empty.`,
     );
     g[flagKey] = false;
+    markPollerFailed(spec.key);
     return;
   }
 
@@ -116,17 +160,41 @@ function startPoller(spec: PollerSpec) {
 
   activeChildren.add(child);
 
+  // Dedicated log files for poller output; prevents poller shell output from
+  // polluting the structured application log in production (O4).
+  const stdoutLog = new PollerLogger(path.join(LOGS_DIR, `poller-${spec.key}.log`));
+  const stderrLog = new PollerLogger(path.join(LOGS_DIR, `poller-${spec.key}.err.log`));
+  activeLoggers.add(stdoutLog);
+  activeLoggers.add(stderrLog);
+
   console.log(`[poller:${spec.key}] started pid=${child.pid} (${path.basename(pollerPath)})`);
 
+  let firstDataReceived = false;
+
   child.stdout?.on('data', (b: Buffer) => {
-    process.stdout.write(`[poller:${spec.key}] ${b.toString()}`);
+    stdoutLog.write(b);
+    if (PASSTHROUGH_LOGS) {
+      process.stdout.write(`[poller:${spec.key}] ${b.toString()}`);
+    }
+    // First stdout chunk is a proxy for "first scan cycle started" (O7).
+    if (!firstDataReceived) {
+      firstDataReceived = true;
+      markPollerFirstData(spec.key);
+    }
   });
   child.stderr?.on('data', (b: Buffer) => {
-    process.stderr.write(`[poller:${spec.key}] ${b.toString()}`);
+    stderrLog.write(b);
+    if (PASSTHROUGH_LOGS) {
+      process.stderr.write(`[poller:${spec.key}] ${b.toString()}`);
+    }
   });
 
   child.on('exit', (code, signal) => {
     activeChildren.delete(child);
+    activeLoggers.delete(stdoutLog);
+    activeLoggers.delete(stderrLog);
+    void stdoutLog.close();
+    void stderrLog.close();
     g[flagKey] = false;
     const elapsed = Date.now() - startedAt;
     if (elapsed < 1500 && (code === 0 || code === null)) {
@@ -134,6 +202,7 @@ function startPoller(spec: PollerSpec) {
       // the bearer token isn't set. Surface a hint so the user isn't left
       // wondering why the affected panel never populates.
       console.warn(`[poller:${spec.key}] exited immediately — ${spec.configHint}`);
+      markPollerFailed(spec.key);
     } else if (signal) {
       console.log(`[poller:${spec.key}] stopped (signal=${signal})`);
     } else {

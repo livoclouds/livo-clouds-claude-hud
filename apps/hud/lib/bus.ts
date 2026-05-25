@@ -29,6 +29,7 @@ export class EventBus {
   private head = 0;
   private count = 0;
   private nextId = 1;
+  private totalPublished = 0;
   /** Maps event id → ring slot for O(1) replaySince lookup. Evicted when slot is overwritten. */
   private readonly idIndex = new Map<string, number>();
   private readonly subscribers = new Map<Subscriber, SubscriberMeta>();
@@ -42,6 +43,22 @@ export class EventBus {
 
   capacity(): number {
     return this._capacity;
+  }
+
+  subscriberCount(): number {
+    return this.subscribers.size;
+  }
+
+  publishCount(): number {
+    return this.totalPublished;
+  }
+
+  lastPublishMs(): number {
+    return this.lastPublishTs;
+  }
+
+  fillRatio(): number {
+    return this._capacity > 0 ? this.count / this._capacity : 0;
   }
 
   publish(event: HudEvent): BusEnvelope {
@@ -61,6 +78,7 @@ export class EventBus {
     if (this.count < this._capacity) this.count += 1;
 
     this.lastPublishTs = Date.now();
+    this.totalPublished += 1;
 
     for (const [sub, meta] of [...this.subscribers]) {
       try {

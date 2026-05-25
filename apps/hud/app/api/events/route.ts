@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import { HudEventSchema } from '@livoclouds/contracts';
 import { bus } from '@/lib/bus';
+import { isDraining } from '@/lib/lifecycle';
 import { appendEvent } from '@/lib/log';
 
 export const runtime = 'nodejs';
@@ -40,6 +41,10 @@ function checkBearer(req: Request): boolean {
 }
 
 export async function POST(req: Request): Promise<Response> {
+  if (isDraining()) {
+    return jsonResponse(503, { error: 'draining' });
+  }
+
   if (!checkBearer(req)) {
     return jsonResponse(401, { error: 'unauthorized' });
   }

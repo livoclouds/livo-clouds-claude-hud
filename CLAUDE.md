@@ -183,7 +183,9 @@ inside route handlers — extend the contract.
   rolling JSONL file under `data/events-YYYY-MM-DD.jsonl` is for history views only —
   the live HUD never reads from disk on the hot path. Log files are size-rotated: set
   `HUD_LOG_MAX_SIZE_MB` (default `100`) to control the per-file ceiling; up to three
-  rotated generations are kept (`.1`, `.2`, `.3`).
+  rotated generations are kept (`.1`, `.2`, `.3`). Time-based cleanup runs on each
+  rotation: set `HUD_LOG_RETENTION_DAYS` (default `7`) to delete rotated files older
+  than the retention window (SD card lifespan on Raspberry Pi).
 - **SSE backpressure**: slow consumers (stuck mobile clients, backgrounded tabs) are
   disconnected before their write queue can grow unbounded. The grace window and byte
   threshold are configurable via env vars:
@@ -192,6 +194,22 @@ inside route handlers — extend the contract.
   - `HUD_SSE_BACKPRESSURE_GRACE_S` — seconds of sustained backpressure before the
     connection is closed (default `30`). The client reconnects automatically with
     `Last-Event-ID` so no events are lost.
+- **Poller logs**: sidecar poller stdout/stderr is redirected to `logs/poller-{key}.log`
+  and `logs/poller-{key}.err.log` (10 MB / 3-generation rotation) so shell output does
+  not pollute the structured application log. Set `HUD_ENABLE_POLLER_LOG_PASSTHROUGH=1`
+  to also forward to parent stdout/stderr (useful in development).
+- **Observability endpoints**:
+  - `GET /api/health` (no auth) — `{ status, uptime, rss, subscribers, eventsTotal,
+    lastEventAgo, diskMb }`. For uptime checkers (Healthchecks.io, UptimeRobot).
+  - `GET /api/internal/stats` (bearer token) — extended diagnostics: bus fill ratio,
+    backpressure ejection count, per-poller status. For operator investigation.
+  - `GET /api/readiness` (no auth) — `200 { ready: true }` once pollers have signalled
+    their first scan cycle and the bus is initialised; `503 { ready: false }` before
+    that. For Kubernetes `readinessProbe` and Docker Compose `healthcheck`.
+- **Graceful shutdown**: on SIGTERM the server sets a `draining` flag (ingest returns
+  503), broadcasts a named `shutdown` SSE event to all connected clients (so they can
+  log the disconnect reason before reconnecting), drains in-flight JSONL writes (up to
+  5 s), then exits via the default handler. SIGINT continues to exit immediately.
 - **No external database** in v1. Add SQLite (via `better-sqlite3`) only when history
   queries become expensive or we need cross-day analytics.
 

@@ -1,5 +1,12 @@
 export const HEARTBEAT_INTERVAL_MS = 15_000;
 
+let _bpEjections = 0;
+
+/** Total number of SSE connections closed due to sustained backpressure since process start. */
+export function bpEjectionCount(): number {
+  return _bpEjections;
+}
+
 export type SseFrame = {
   id?: string;
   event?: string;
@@ -86,6 +93,7 @@ export function buildSseResponse(req: Request, handlers: SseHandlers): Response 
       };
 
       const bpDisconnect = () => {
+        _bpEjections += 1;
         console.warn('sse: bp-disconnect — slow consumer exceeded grace window, closing connection');
         try {
           controller.enqueue(
