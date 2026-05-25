@@ -25,6 +25,7 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "latest",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.7.5",
     "@types/react": "^19.1.0",
